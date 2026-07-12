@@ -1,0 +1,22 @@
+# Secrets (tokens, credentials)
+.secrets
+
+# Generated data and site output
+site/data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# uv
+.venv/
+
+# Config (user-specific)
+config.yml
+
+# OS
+.DS_Store

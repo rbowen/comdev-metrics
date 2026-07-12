@@ -1,0 +1,1 @@
+"""Trend analysis and comparisons."""

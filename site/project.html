@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Metrics</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8f9fa;
+        }
+        a { color: #d45500; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        h1 { margin-bottom: 0.25rem; color: #1a1a2e; }
+        .breadcrumb { color: #666; margin-bottom: 1.5rem; font-size: 0.9rem; }
+        .stats-bar {
+            display: flex; gap: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap;
+        }
+        .stat-card {
+            background: white; border-radius: 8px; padding: 1.2rem 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); min-width: 140px; flex: 1;
+        }
+        .stat-card .number { font-size: 1.8rem; font-weight: 700; color: #d45500; }
+        .stat-card .label { color: #666; font-size: 0.85rem; }
+        .section {
+            background: white; border-radius: 8px; padding: 1.5rem;
+            margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .section h2 { margin-bottom: 1rem; color: #1a1a2e; font-size: 1.2rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 0.4rem 0.8rem; border-bottom: 1px solid #eee; }
+        th { font-weight: 600; color: #666; font-size: 0.8rem; text-transform: uppercase; }
+        .sparkline {
+            display: inline-flex; align-items: flex-end; gap: 2px; height: 30px;
+        }
+        .sparkline .bar {
+            width: 8px; background: #d45500; border-radius: 2px 2px 0 0;
+            min-height: 2px;
+        }
+        .chart-container {
+            width: 100%; height: 200px; display: flex; align-items: flex-end;
+            gap: 2px; padding: 1rem 0;
+        }
+        .trend-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+        }
+        .trend-line {
+            stroke: #ff6600;
+            stroke-width: 2;
+            stroke-dasharray: 6 3;
+            opacity: 0.7;
+        }
+        .chart-bar {
+            flex: 1; background: #d45500; border-radius: 3px 3px 0 0;
+            min-height: 2px; position: relative;
+        }
+        .chart-bar:hover { background: #ff6600; }
+        .chart-bar .tooltip {
+            display: none; position: absolute; bottom: 100%; left: 50%;
+            transform: translateX(-50%); background: #333; color: white;
+            padding: 2px 6px; border-radius: 3px; font-size: 0.75rem;
+            white-space: nowrap;
+        }
+        .chart-bar:hover .tooltip { display: block; }
+        .chart-labels {
+            display: flex; gap: 2px; font-size: 0.7rem; color: #999;
+        }
+        .chart-labels span { flex: 1; text-align: center; }
+        #loading { color: #999; font-style: italic; padding: 2rem; text-align: center; }
+        #error { color: #dc3545; display: none; padding: 2rem; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="breadcrumb"><a href="index.html">← All Projects</a></div>
+    <h1 id="project-title">Loading...</h1>
+    <div id="loading">Loading project data...</div>
+    <div id="error"></div>
+    <div id="app" style="display:none">
+
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="number" id="stat-messages">—</div>
+            <div class="label">Messages (12 months)</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="stat-lists">—</div>
+            <div class="label">Active Lists</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="stat-roster">—</div>
+            <div class="label">PMC Size</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="stat-releases">—</div>
+            <div class="label">Releases (12 months)</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="stat-established">—</div>
+            <div class="label">Established</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Mailing List Activity (12 Months)</h2>
+        <table id="lists-table">
+            <thead><tr><th>List</th><th>Messages</th><th>Monthly Trend</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="section" id="chart-section" style="display:none">
+        <h2 id="chart-title">dev@ — Monthly Messages</h2>
+        <div id="chart-wrapper" style="position:relative;height:200px"><div class="chart-container" id="chart"></div></div>
+        <div class="chart-labels" id="chart-labels"></div>
+    </div>
+
+    <div class="section" id="git-section" style="display:none">
+        <h2>Git/VCS Activity (12 Months)</h2>
+        <div class="stats-bar" id="git-stats" style="margin-bottom:1rem"></div>
+        <table id="git-repos-table">
+            <thead><tr><th>Repository</th><th style="text-align:right">Commits</th><th style="text-align:right">Committers</th><th style="width:100px">Trend</th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <div id="git-chart-section" style="display:none;margin-top:1rem">
+            <h3 id="git-chart-title" style="font-size:0.95rem;color:#666;margin-bottom:0.5rem"></h3>
+            <div id="git-chart-wrapper" style="position:relative;height:200px">
+                <div class="chart-container" id="git-chart"></div>
+            </div>
+            <div class="chart-labels" id="git-chart-labels"></div>
+            <div id="git-pr-wrapper" style="position:relative;height:150px;margin-top:1rem;display:none">
+                <h3 style="font-size:0.95rem;color:#666;margin-bottom:0.5rem">Pull Requests</h3>
+                <div class="chart-container" id="git-pr-chart" style="height:120px"></div>
+            </div>
+            <p id="git-pr-legend" style="display:none;font-size:0.8rem;color:#666;margin-top:0.3rem"><span style="display:inline-block;width:12px;height:12px;background:#2e7d32;border-radius:2px;vertical-align:middle"></span> Merged &nbsp; <span style="display:inline-block;width:12px;height:12px;background:#d45500;border-radius:2px;vertical-align:middle"></span> Opened (not yet merged)</p>
+            <div class="chart-labels" id="git-pr-labels" style="display:none"></div>
+        </div>
+    </div>
+
+    <div class="section" id="releases-section" style="display:none">
+        <h2>Recent Releases</h2>
+        <table id="releases-table">
+            <thead><tr><th>Release</th><th>Date</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="section" id="project-links-section" style="display:none">
+        <h2>Project Info</h2>
+        <p id="project-links"></p>
+    </div>
+
+    </div><!-- #app -->
+
+    <script>
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get('id');
+
+    if (!projectId) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error').textContent = 'No project specified. Use ?id=projectname';
+    } else {
+        loadProject(projectId);
+    }
+
+    async function loadProject(id) {
+        document.title = `${id} — ASF Community Metrics`;
+        document.getElementById('project-title').textContent = `Apache ${id.charAt(0).toUpperCase() + id.slice(1)}`;
+
+        // 12-month cutoff for trend context
+        const now = new Date();
+        const yearAgo = new Date(now);
+        yearAgo.setMonth(yearAgo.getMonth() - 12);
+        const cutoffStr = `${yearAgo.getFullYear()}-${String(yearAgo.getMonth()+1).padStart(2,'0')}`;
+
+        try {
+            // Load mailing list data
+            const [mlResp, committeesResp, releasesResp] = await Promise.all([
+                fetch(`data/${id}.json`),
+                fetch('data/_cache/committees.json'),
+                fetch('data/_cache/releases.json'),
+            ]);
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+
+            // --- Mailing lists ---
+            let totalMessages = 0;
+            if (mlResp.ok) {
+                const ml = await mlResp.json();
+                const listsTbody = document.querySelector('#lists-table tbody');
+
+                ml.active_lists.forEach(list => {
+                    const months = list.active_months || {};
+                    // Build full month range (fill gaps with 0)
+                    let quarterTotal = 0;
+                    const recentMonths = [];
+                    const sparkStart = new Date(cutoffStr + '-01');
+                    const sparkNow = new Date();
+                    const sparkCursor = new Date(sparkStart);
+                    while (sparkCursor <= sparkNow) {
+                        const key = `${sparkCursor.getFullYear()}-${String(sparkCursor.getMonth()+1).padStart(2,'0')}`;
+                        const count = months[key] || 0;
+                        quarterTotal += count;
+                        recentMonths.push({month: key, count});
+                        sparkCursor.setMonth(sparkCursor.getMonth() + 1);
+                    }
+                    totalMessages += quarterTotal;
+
+                    // Skip lists with no traffic in the quarter
+                    if (quarterTotal === 0) return;
+
+                    // Sparkline
+                    const maxInRecent = Math.max(...recentMonths.map(m => m.count), 1);
+                    const sparkHtml = recentMonths.map(m => {
+                        const h = m.count > 0 ? Math.max(2, (m.count / maxInRecent) * 28) : 1;
+                        return `<div class="bar" style="height:${h}px" title="${m.month}: ${m.count}"></div>`;
+                    }).join('');
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${list.list_name}@${ml.domain}</td>
+                        <td>${quarterTotal}</td>
+                        <td><div class="sparkline">${sparkHtml}</div></td>
+                    `;
+                    row.style.cursor = 'pointer';
+                    row.addEventListener('click', () => showChart(list, ml.domain, cutoffStr));
+                    listsTbody.appendChild(row);
+                });
+
+                document.getElementById('stat-messages').textContent = totalMessages;
+                document.getElementById('stat-lists').textContent = ml.active_lists.length;
+
+                // Show chart for first list by default
+                if (ml.active_lists.length > 0) {
+                    showChart(ml.active_lists[0], ml.domain, cutoffStr);
+                }
+            } else {
+                document.getElementById('stat-messages').textContent = '—';
+                document.getElementById('stat-lists').textContent = '0';
+                document.querySelector('#lists-table tbody').innerHTML =
+                    '<tr><td colspan="3" style="color:#999">No mailing list data collected yet. Run: uv run asfmetrics --project ' + id + '</td></tr>';
+            }
+
+            // --- Committee / roster ---
+            if (committeesResp.ok) {
+                const committees = await committeesResp.json();
+                const pmc = committees.find(c => c.id === id);
+                if (pmc) {
+                    document.getElementById('project-title').textContent = pmc.name;
+                    document.getElementById('stat-established').textContent = pmc.established || '—';
+
+                    const roster = pmc.roster || {};
+                    document.getElementById('stat-roster').textContent = Object.keys(roster).length;
+
+                    // Link to projects.apache.org for full project metadata
+                    const linksSection = document.getElementById('project-links-section');
+                    linksSection.style.display = 'block';
+                    document.getElementById('project-links').innerHTML =
+                        `<a href="https://projects.apache.org/committee.html?${id}" target="_blank">` +
+                        `View full project details on projects.apache.org →</a>` +
+                        ` (roster, description, repositories, homepage)`;
+                }
+            }
+
+            // --- Releases ---
+            if (releasesResp.ok) {
+                const releases = await releasesResp.json();
+                const projectReleases = releases[id] || {};
+                const recentReleases = Object.entries(projectReleases)
+                    .filter(([_, date]) => date >= cutoffStr)
+                    .sort(([_,a],[__,b]) => b.localeCompare(a));
+
+                document.getElementById('stat-releases').textContent = recentReleases.length;
+
+                if (recentReleases.length > 0) {
+                    const relSection = document.getElementById('releases-section');
+                    relSection.style.display = 'block';
+                    const relTbody = document.querySelector('#releases-table tbody');
+                    const MAX_VISIBLE = 10;
+                    recentReleases.forEach(([name, date], idx) => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `<td>${name}</td><td>${date}</td>`;
+                        if (idx >= MAX_VISIBLE) row.style.display = 'none';
+                        if (idx >= MAX_VISIBLE) row.className = 'release-overflow';
+                        relTbody.appendChild(row);
+                    });
+                    if (recentReleases.length > MAX_VISIBLE) {
+                        const moreRow = document.createElement('tr');
+                        moreRow.innerHTML = `<td colspan="2" style="color:#d45500;cursor:pointer;font-size:0.9rem">▸ Show ${recentReleases.length - MAX_VISIBLE} more releases...</td>`;
+                        moreRow.addEventListener('click', () => {
+                            document.querySelectorAll('.release-overflow').forEach(r => r.style.display = '');
+                            moreRow.remove();
+                        });
+                        relTbody.appendChild(moreRow);
+                    }
+                }
+            }
+
+            // --- Git/VCS activity ---
+            const gitResp = await fetch(`data/${id}_git.json`);
+            if (gitResp.ok) {
+                const git = await gitResp.json();
+                const activeRepos = git.active_repos || [];
+
+                if (activeRepos.length > 0) {
+                    const gitSection = document.getElementById('git-section');
+                    gitSection.style.display = 'block';
+
+                    // Stats bar
+                    const totals = git.totals || {};
+                    const statsHtml = `
+                        <div class="stat-card"><div class="number">${(totals.commits||0).toLocaleString()}</div><div class="label">Commits</div></div>
+                        <div class="stat-card"><div class="number">${totals.committers||0}</div><div class="label">Unique Committers</div></div>
+                        <div class="stat-card"><div class="number">${activeRepos.length}</div><div class="label">Active Repos</div></div>
+                        ${totals.prs_opened !== undefined ? `<div class="stat-card"><div class="number">${totals.prs_opened||0}</div><div class="label">PRs Opened</div></div>` : ''}
+                        ${totals.prs_merged !== undefined ? `<div class="stat-card"><div class="number">${totals.prs_merged||0}</div><div class="label">PRs Merged</div></div>` : ''}
+                    `;
+                    document.getElementById('git-stats').innerHTML = statsHtml;
+
+                    // Repos table (like mailing lists)
+                    const gitTbody = document.querySelector('#git-repos-table tbody');
+                    const org = git.org || 'apache';
+
+                    activeRepos.forEach(repo => {
+                        const monthly = repo.monthly || {};
+                        const monthKeys = Object.keys(monthly).sort();
+
+                        // Build sparkline
+                        const sparkMonths = [];
+                        const sparkStart = new Date(cutoffStr + '-01');
+                        const sparkNow = new Date();
+                        const sparkCursor = new Date(sparkStart);
+                        while (sparkCursor <= sparkNow) {
+                            const key = `${sparkCursor.getFullYear()}-${String(sparkCursor.getMonth()+1).padStart(2,'0')}`;
+                            sparkMonths.push((monthly[key] || {}).commits || 0);
+                            sparkCursor.setMonth(sparkCursor.getMonth() + 1);
+                        }
+                        const sparkMax = Math.max(...sparkMonths, 1);
+                        const sparkBars = sparkMonths.map(v =>
+                            `<div style="display:inline-block;width:4px;margin-right:1px;vertical-align:bottom;background:#1a73e8;height:${Math.max(1, (v/sparkMax)*20)}px"></div>`
+                        ).join('');
+
+                        const repoLink = git.vcs === 'svn'
+                            ? repo.repo_name
+                            : `${repo.repo_name} <a href="https://github.com/${org}/${repo.repo_name}" target="_blank" title="View on GitHub" onclick="event.stopPropagation()"><svg height="14" width="14" viewBox="0 0 16 16" style="vertical-align:middle;opacity:0.5"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a>`;
+
+                        const row = document.createElement('tr');
+                        row.style.cursor = 'pointer';
+                        row.innerHTML = `<td style="white-space:nowrap">${repoLink}</td><td style="text-align:right">${repo.commits.toLocaleString()}</td><td style="text-align:right">${repo.committers}</td><td>${sparkBars}</td>`;
+                        row.addEventListener('click', () => showGitChart(repo, org, git.vcs, cutoffStr));
+                        gitTbody.appendChild(row);
+                    });
+
+                    // Auto-show chart for the first (most active) repo
+                    if (activeRepos.length > 0) {
+                        showGitChart(activeRepos[0], org, git.vcs, cutoffStr);
+                    }
+                }
+            }
+
+        } catch(e) {
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = `Error: ${e.message}`;
+        }
+    }
+
+    function showChart(list, domain, cutoffStr) {
+        const section = document.getElementById('chart-section');
+        section.style.display = 'block';
+        document.getElementById('chart-title').textContent =
+            `${list.list_name}@${domain} — Monthly Messages`;
+
+        const months = list.active_months || {};
+
+        // Generate ALL months in the 12-month window (fill gaps with 0)
+        const allMonths = [];
+        const startDate = new Date(cutoffStr + '-01');
+        const now = new Date();
+        const cursor = new Date(startDate);
+        while (cursor <= now) {
+            const key = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}`;
+            allMonths.push([key, months[key] || 0]);
+            cursor.setMonth(cursor.getMonth() + 1);
+        }
+
+        const maxCount = Math.max(...allMonths.map(([_,c]) => c), 1);
+        const chart = document.getElementById('chart');
+        const labels = document.getElementById('chart-labels');
+        chart.innerHTML = '';
+        labels.innerHTML = '';
+        const existingTrend = document.getElementById('chart-wrapper').querySelector('.trend-overlay');
+        if (existingTrend) existingTrend.remove();
+
+        allMonths.forEach(([month, count]) => {
+            const h = count > 0 ? Math.max(2, (count / maxCount) * 180) : 0;
+            const bar = document.createElement('div');
+            bar.className = 'chart-bar';
+            bar.style.height = `${h}px`;
+            if (count === 0) { bar.style.minHeight = '0'; bar.style.background = '#eee'; }
+            bar.innerHTML = `<div class="tooltip">${month}: ${count}</div>`;
+            chart.appendChild(bar);
+
+            const lbl = document.createElement('span');
+            lbl.textContent = month.slice(5); // just "01", "02", etc.
+            labels.appendChild(lbl);
+        });
+
+        // Draw trend line (linear regression) over the chart
+        if (allMonths.length >= 2) {
+            const n = allMonths.length;
+            const values = allMonths.map(([m, c]) => {
+                const now = new Date();
+                const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+                if (m === currentMonthStr && c > 0) {
+                    const dayOfMonth = now.getDate();
+                    const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+                    if (dayOfMonth > 0 && dayOfMonth < daysInMonth)
+                        return Math.round(c * (daysInMonth / dayOfMonth));
+                }
+                return c;
+            });
+
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            for (let i = 0; i < n; i++) {
+                sumX += i;
+                sumY += values[i];
+                sumXY += i * values[i];
+                sumX2 += i * i;
+            }
+            const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+
+            // Map to pixel Y: 0→bottom(184), maxCount→top(4). Chart=200px, bars max 180px.
+            const yForVal = (v) => 184 - (v / maxCount) * 180;
+            const y1 = yForVal(intercept);
+            const y2 = yForVal(slope * (n - 1) + intercept);
+
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;';
+            svg.setAttribute('class', 'trend-overlay');
+            svg.setAttribute('viewBox', `0 0 ${n} 200`);
+            svg.setAttribute('preserveAspectRatio', 'none');
+            svg.innerHTML = `<line class="trend-line" x1="0.5" y1="${y1}" x2="${n-0.5}" y2="${y2}" vector-effect="non-scaling-stroke"/>`;
+            document.getElementById('chart-wrapper').appendChild(svg);
+        }
+    }
+
+    function showGitChart(repo, org, vcs, cutoffStr) {
+        const section = document.getElementById('git-chart-section');
+        section.style.display = 'block';
+
+        const title = vcs === 'svn'
+            ? `${repo.repo_name} — Monthly Commits`
+            : `<a href="https://github.com/${org}/${repo.repo_name}" target="_blank">${repo.repo_name}</a> — Monthly Commits`;
+        document.getElementById('git-chart-title').innerHTML = title;
+
+        const monthly = repo.monthly || {};
+
+        // Generate full month range
+        const allMonths = [];
+        const startDate = new Date(cutoffStr + '-01');
+        const now = new Date();
+        const cursor = new Date(startDate);
+        while (cursor <= now) {
+            const key = `${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}`;
+            allMonths.push([key, (monthly[key] || {}).commits || 0]);
+            cursor.setMonth(cursor.getMonth() + 1);
+        }
+
+        const maxCount = Math.max(...allMonths.map(([_,c]) => c), 1);
+        const chart = document.getElementById('git-chart');
+        const labels = document.getElementById('git-chart-labels');
+        chart.innerHTML = '';
+        labels.innerHTML = '';
+
+        // Remove old trend line
+        const existingTrend = document.getElementById('git-chart-wrapper').querySelector('.trend-overlay');
+        if (existingTrend) existingTrend.remove();
+
+        allMonths.forEach(([month, count]) => {
+            const h = count > 0 ? Math.max(2, (count / maxCount) * 180) : 0;
+            const bar = document.createElement('div');
+            bar.className = 'chart-bar';
+            bar.style.height = `${h}px`;
+            if (count === 0) { bar.style.minHeight = '0'; bar.style.background = '#eee'; }
+            bar.innerHTML = `<div class="tooltip">${month}: ${count} commits</div>`;
+            chart.appendChild(bar);
+
+            const lbl = document.createElement('span');
+            lbl.textContent = month.slice(5);
+            labels.appendChild(lbl);
+        });
+
+        // PR chart (if data exists)
+        const hasPRs = Object.values(monthly).some(d => d.prs_opened > 0 || d.prs_merged > 0);
+        const prWrapper = document.getElementById('git-pr-wrapper');
+        const prLabels = document.getElementById('git-pr-labels');
+        if (hasPRs) {
+            prWrapper.style.display = 'block';
+            prLabels.style.display = 'flex';
+            document.getElementById('git-pr-legend').style.display = 'block';
+            const prChart = document.getElementById('git-pr-chart');
+            prChart.innerHTML = '';
+            prLabels.innerHTML = '';
+
+            const prValues = allMonths.map(([m]) => ((monthly[m] || {}).prs_merged || 0) + ((monthly[m] || {}).prs_opened || 0));
+            const maxPr = Math.max(...prValues, 1);
+
+            allMonths.forEach(([month]) => {
+                const merged = (monthly[month] || {}).prs_merged || 0;
+                const opened = (monthly[month] || {}).prs_opened || 0;
+                const total = merged + opened;
+                const h = total > 0 ? Math.max(2, (total / maxPr) * 100) : 0;
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar';
+                bar.style.height = `${h}px`;
+                bar.style.background = merged > 0 ? '#2e7d32' : '#d45500';
+                if (total === 0) { bar.style.minHeight = '0'; bar.style.background = '#eee'; }
+                bar.innerHTML = `<div class="tooltip">${month}: ${opened} opened, ${merged} merged</div>`;
+                prChart.appendChild(bar);
+
+                const lbl = document.createElement('span');
+                lbl.textContent = month.slice(5);
+                prLabels.appendChild(lbl);
+            });
+        } else {
+            prWrapper.style.display = 'none';
+            prLabels.style.display = 'none';
+            document.getElementById('git-pr-legend').style.display = 'none';
+        }
+    }
+    </script>
+</body>
+</html>

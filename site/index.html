@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASF Community Metrics</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8f9fa;
+        }
+        h1 { margin-bottom: 0.5rem; color: #1a1a2e; }
+        .subtitle { color: #666; margin-bottom: 2rem; }
+        .stats-bar {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            min-width: 160px;
+            flex: 1;
+        }
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #d45500;
+        }
+        .stat-card .label { color: #666; font-size: 0.9rem; }
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .section h2 { margin-bottom: 1rem; color: #1a1a2e; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            text-align: left;
+            padding: 0.5rem 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        th { font-weight: 600; color: #666; font-size: 0.85rem; text-transform: uppercase; }
+        td a { color: #d45500; text-decoration: none; }
+        td a:hover { text-decoration: underline; }
+        .bar {
+            background: #fff3e0;
+            border-radius: 3px;
+            height: 20px;
+            position: relative;
+        }
+        .bar-fill {
+            background: #d45500;
+            border-radius: 3px;
+            height: 100%;
+            min-width: 2px;
+        }
+        .bar-label {
+            position: absolute;
+            right: 6px;
+            top: 1px;
+            font-size: 0.75rem;
+            color: #333;
+        }
+        #loading { color: #999; font-style: italic; padding: 2rem; text-align: center; }
+        .tab-bar { display: flex; gap: 0; margin-bottom: 0; }
+        .tab {
+            padding: 0.6rem 1.2rem;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            background: #f0f0f0;
+            font-size: 0.9rem;
+        }
+        .tab.active { background: white; font-weight: 600; border-bottom: 1px solid white; margin-bottom: -1px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <h1>ASF Community Metrics</h1>
+    <p class="subtitle">Apache project community health — data from projects.apache.org</p>
+
+    <div id="loading">Loading data...</div>
+    <div id="app" style="display:none">
+
+    <div class="stats-bar" id="stats-bar">
+        <div class="stat-card">
+            <div class="number" id="project-count">—</div>
+            <div class="label">Active PMCs</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="committer-count">—</div>
+            <div class="label">Total Roster Entries</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="new-committers-6mo">—</div>
+            <div class="label">New in Last 12 Months</div>
+        </div>
+        <div class="stat-card">
+            <div class="number" id="releases-6mo">—</div>
+            <div class="label">Releases (12 months)</div>
+        </div>
+    </div>
+
+    <div class="tab-bar">
+        <div class="tab" data-tab="growth">Community Growth</div>
+        <div class="tab" data-tab="releases">Recent Releases</div>
+        <div class="tab" data-tab="mailing">Mailing Lists</div>
+        <div class="tab active" data-tab="projects">All Projects</div>
+    </div>
+
+    <div class="section" style="border-radius: 0 8px 8px 8px;">
+        <div class="tab-content" id="tab-growth">
+            <h2>New PMC/Committer Additions (Last 6 Months)</h2>
+            <table id="growth-table">
+                <thead><tr><th>Project</th><th>New Members</th><th></th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="tab-content" id="tab-releases">
+            <h2>Releases in Last 6 Months</h2>
+            <table id="releases-table">
+                <thead><tr><th>Project</th><th>Releases</th><th></th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="tab-content" id="tab-mailing">
+            <h2>Mailing List Activity (Last 12 Months)</h2>
+            <p style="color:#666;margin-bottom:1rem">Messages per month on dev@ lists (12-month window, with trend line)</p>
+            <table id="mailing-table">
+                <thead><tr><th>Project</th><th>Messages (12mo)</th><th>Trend</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <p id="mailing-note" style="color:#999;font-size:0.85rem;margin-top:1rem;display:none">
+                Run <code>uv run asfmetrics</code> (without --skip-mailing-lists) to collect per-project mailing list data.</p>
+        </div>
+
+        <div class="tab-content active" id="tab-projects">
+            <h2>Active Projects</h2>
+            <table id="projects-table">
+                <thead><tr><th>Project</th><th>Established</th><th>PMC Size</th><th>Chair</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    </div><!-- #app -->
+
+    <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        });
+    });
+
+    async function loadData() {
+        try {
+            const [committeesResp, releasesResp] = await Promise.all([
+                fetch('data/_cache/committees.json'),
+                fetch('data/_cache/releases.json'),
+            ]);
+
+            if (!committeesResp.ok) {
+                document.getElementById('loading').textContent =
+                    'No data found. Run: uv run asfmetrics --skip-mailing-lists';
+                return;
+            }
+
+            const committees = await committeesResp.json();
+            const releases = releasesResp.ok ? await releasesResp.json() : {};
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 12);
+            const sixMonthStr = sixMonthsAgo.toISOString().slice(0, 10);
+            const quarterStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth()+1).padStart(2,'0')}`;
+
+            // Compute metrics
+            let totalRoster = 0;
+            let newIn6Mo = 0;
+            const growthByProject = {};
+
+            committees.forEach(pmc => {
+                const roster = pmc.roster || {};
+                const size = Object.keys(roster).length;
+                totalRoster += size;
+
+                let newCount = 0;
+                Object.values(roster).forEach(entry => {
+                    if (entry.date && entry.date >= sixMonthStr) {
+                        newCount++;
+                        newIn6Mo++;
+                    }
+                });
+                if (newCount > 0) {
+                    growthByProject[pmc.name] = { count: newCount, id: pmc.id };
+                }
+            });
+
+            // Releases in last 6 months
+            let releasesIn6Mo = 0;
+            const releasesByProject = {};
+            Object.entries(releases).forEach(([project, rels]) => {
+                let count = 0;
+                Object.entries(rels).forEach(([name, date]) => {
+                    if (date >= sixMonthStr) {
+                        count++;
+                        releasesIn6Mo++;
+                    }
+                });
+                if (count > 0) {
+                    releasesByProject[project] = count;
+                }
+            });
+
+            // Update stat cards
+            document.getElementById('project-count').textContent = committees.length;
+            document.getElementById('committer-count').textContent = totalRoster.toLocaleString();
+            document.getElementById('new-committers-6mo').textContent = newIn6Mo;
+            document.getElementById('releases-6mo').textContent = releasesIn6Mo.toLocaleString();
+
+            // Growth table
+            const growthSorted = Object.entries(growthByProject)
+                .sort((a, b) => b[1].count - a[1].count);
+            const maxGrowth = growthSorted.length ? growthSorted[0][1].count : 1;
+            const growthTbody = document.querySelector('#growth-table tbody');
+            growthSorted.forEach(([name, data]) => {
+                const pct = (data.count / maxGrowth * 100).toFixed(0);
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><a href="project.html?id=${data.id}">${name}</a></td>
+                    <td style="width:60px;text-align:right">${data.count}</td>
+                    <td style="width:40%"><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+                `;
+                growthTbody.appendChild(row);
+            });
+
+            // Releases table
+            const relSorted = Object.entries(releasesByProject)
+                .sort((a, b) => b[1] - a[1]);
+            const maxRel = relSorted.length ? relSorted[0][1] : 1;
+            const relTbody = document.querySelector('#releases-table tbody');
+            relSorted.forEach(([project, count]) => {
+                const pct = (count / maxRel * 100).toFixed(0);
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${project}</td>
+                    <td style="width:60px;text-align:right">${count}</td>
+                    <td style="width:40%"><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+                `;
+                relTbody.appendChild(row);
+            });
+
+            // Projects table
+            const projTbody = document.querySelector('#projects-table tbody');
+            committees
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .forEach(c => {
+                    const rosterSize = Object.keys(c.roster || {}).length;
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><a href="project.html?id=${c.id}">${c.name}</a></td>
+                        <td>${c.established || '—'}</td>
+                        <td>${rosterSize}</td>
+                        <td>${c.chair || '—'}</td>
+                    `;
+                    projTbody.appendChild(row);
+                });
+
+            // Mailing list data — load per-project JSON files
+            // Load single summary file (written by collector) instead of 200+ individual fetches
+            const mailingTbody = document.querySelector('#mailing-table tbody');
+            const mailingNote = document.getElementById('mailing-note');
+            const sixMonthsAgoDate = new Date();
+            sixMonthsAgoDate.setMonth(sixMonthsAgoDate.getMonth() - 12);
+            const cutoffYear = sixMonthsAgoDate.getFullYear();
+            const cutoffMonth = sixMonthsAgoDate.getMonth() + 1;
+            const cutoffStr = `${cutoffYear}-${String(cutoffMonth).padStart(2, '0')}`;
+
+            const mailingResults = [];
+
+            try {
+                const summaryResp = await fetch('data/_cache/mailing_summary.json');
+                if (summaryResp.ok) {
+                    const summaryData = await summaryResp.json();
+                    summaryData.forEach(entry => {
+                        const months = entry.active_months || {};
+                        let recent = 0;
+                        Object.entries(months).forEach(([month, count]) => {
+                            if (month >= cutoffStr) recent += count;
+                        });
+                        if (recent > 0) {
+                            mailingResults.push({
+                                project: entry.project,
+                                list: entry.list_name,
+                                recent: recent,
+                                months: months,
+                            });
+                        }
+                    });
+                }
+            } catch(e) {}
+
+            if (mailingResults.length === 0) {
+                mailingNote.style.display = 'block';
+            } else {
+                mailingResults.sort((a, b) => b.recent - a.recent);
+                const maxMail = mailingResults[0].recent;
+                mailingResults.forEach(({project, list, recent}) => {
+                    const pct = (recent / maxMail * 100).toFixed(0);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${project} (${list}@)</td>
+                        <td style="width:80px;text-align:right">${recent}</td>
+                        <td style="width:40%"><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+                    `;
+                    mailingTbody.appendChild(row);
+                });
+            }
+
+        } catch (e) {
+            document.getElementById('loading').textContent = `Error: ${e.message}`;
+        }
+    }
+
+    loadData();
+    </script>
+</body>
+</html>

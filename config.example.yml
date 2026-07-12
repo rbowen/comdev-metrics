@@ -1,0 +1,58 @@
+# asfmetrics configuration
+# Copy to config.yml and adjust for your environment.
+# Lookup order: ./config.yml -> ~/.asfmetrics/config.yml -> /etc/asfmetrics/config.yml
+
+projects:
+  - all  # or list specific: [airflow, kafka, iceberg, comdev]
+
+data_sources:
+  # Foundation-wide data (project list, rosters, releases)
+  # Initially fetched from projects.apache.org JSON; later can swap to Whimsy/LDAP
+  projects_apache_org:
+    base_url: https://projects.apache.org/json/foundation/
+
+  mailing_lists:
+    backend: ponymail
+    base_url: https://lists.apache.org/api/
+    # Only report on lists with traffic within this window (full year for trends).
+    # Uses Pony Mail Foal date format: 12M = 12 Months
+    activity_threshold: "12M"
+
+  git:
+    backend: github
+    org: apache
+    # zero_checkout: API-only, no local clones
+    zero_checkout: true
+
+output:
+  format: both  # static_html, json, or both
+  output_dir: ./site/
+  json_dir: ./site/data/
+
+schedule:
+  cadence: weekly
+
+# Per-project VCS overrides
+# By default, all projects use the GitHub API (data_sources.git.backend).
+# Override here for projects using Subversion or a non-standard GitHub org.
+#
+# Supported VCS backends:
+#   github  - GitHub REST API (commits, PRs). Default for all projects.
+#   svn     - svn log --xml against remote URL. No checkout needed.
+#
+# Fields:
+#   vcs: github | svn
+#   svn_path: full SVN URL (for svn backend)
+#   github_org: override GitHub org (default: "apache")
+#   repos: [list, of, repo, names] — override auto-discovered repos
+#
+project_overrides:
+  httpd:
+    vcs: svn
+    svn_path: https://svn.apache.org/repos/asf/httpd/httpd/trunk
+  apr:
+    vcs: svn
+    svn_path: https://svn.apache.org/repos/asf/apr/apr/trunk
+  subversion:
+    vcs: svn
+    svn_path: https://svn.apache.org/repos/asf/subversion/trunk
