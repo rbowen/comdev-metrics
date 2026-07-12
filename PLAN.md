@@ -30,6 +30,7 @@ health and activity of every Apache project with 12-month rolling trends.
 - Unique committers per month
 - PRs opened / merged / closed (GitHub only)
 - Source: GitHub API (zero-checkout, API-only) OR `svn log --xml` (remote, no checkout)
+- **Auto-detection**: SVN-only projects detected from `repositories.json`
 - **Per-project VCS config**: `project_overrides` in config.yml
 
 ### 3. Community Events
@@ -47,27 +48,30 @@ health and activity of every Apache project with 12-month rolling trends.
 
 | # | Milestone | Target | Status |
 |---|-----------|--------|--------|
-| 1 | Scaffold project (pyproject.toml, config loading, CLI) | Week of Jun 30 | ✅ Done |
-| 2 | Mailing list collector (Pony Mail Foal API, 12-month window + caching) | Week of Jul 7 | ✅ Done |
-| 3 | Git/GitHub collector + SVN backend (zero-checkout, API-only) | Week of Jul 7 | ✅ Done (needs testing) |
-| 4 | Trend analysis (12-month rolling window + trend lines with current-month extrapolation) | Week of Jul 21 | ✅ Done |
-| 5 | Static HTML dashboard + per-project pages (default: All Projects tab) | Week of Jul 21 | ✅ Done |
-| 6 | Roster change detection (projects.apache.org JSON diffing) | Week of Jul 28 | ✅ Done |
-| 7 | Deploy to ComDev VM for demo | Week of Jul 28 | ⬜ |
-| 8 | Single-project self-serve mode | Week of Aug 4 | ⬜ |
-| 9 | Next Committer integration (PMC-only, LDAP gated) | TBD | ⬜ |
-| 10 | Production deployment on ComDev VM | TBD | ⬜ |
+| 1 | Scaffold project (pyproject.toml, config loading, CLI) | | ✅ Done |
+| 2 | Mailing list collector (Pony Mail Foal API, 12-month window + caching) | | ✅ Done |
+| 3 | Git/GitHub collector + SVN backend (per-repo, rate-limit aware) | | ✅ Done |
+| 4 | Trend analysis (12-month rolling window + trend lines with current-month extrapolation) | | ✅ Done |
+| 5 | Static HTML dashboard + per-project pages (default: All Projects tab) | | ✅ Done |
+| 6 | Roster change detection (projects.apache.org JSON diffing) | | ✅ Done |
+| 7 | Deploy to ComDev VM for demo | | ⬜ |
+| 8 | Next Committer integration (PMC-only, LDAP gated) | | ⬜ |
+| 9 | Production deployment on ComDev VM | | ⬜ |
 
-**Target: basic dashboard running by early August.**
+**Status:** Dashboard running at https://boxofclue.com/comdev-metrics/
+
+with 205 projects collecting successfully. Code at https://github.com/apache/comdev-metrics (pending).
 
 ## Architecture Notes
 
 ### Caching Strategy
-- Mailing list cache: `site/data/_cache/mailing_lists/<project>.json`
-- Past months are immutable (archive data cannot change after month ends)
-- Only current month refreshed on each run
+- **Mailing lists**: `site/data/_cache/mailing_lists/<project>.json`
+- **Git activity**: `site/data/_cache/git/<project>.json` (per-repo monthly data)
+- Past months are immutable — data cannot change after a month ends
+- Same-day re-runs skip (cache hit); next-day runs do incremental refresh from last fetch date
+- Incremental refresh overlaps by re-fetching from the fetch date (not day-after) to avoid gaps
 - `--force-refresh` clears all caches
-- Future: apply same pattern to Git collector
+- `--refresh-repos` re-fetches the GitHub org repo inventory
 
 ### Trend Lines
 - Linear regression (least-squares) over the 12-month data series
@@ -78,6 +82,15 @@ health and activity of every Apache project with 12-month rolling trends.
 ### Per-project Detail Pages
 - Link to projects.apache.org for full metadata (roster, repos, homepage)
 - No roster duplication — just show PMC size stat and link out
+- Git section: clickable table of repos (sparklines), click to expand chart
+- Mailing list section: same pattern — clickable list table, chart on click
+- First/most-active item auto-expanded on page load
+- Releases collapsed after 10 with "show more" expander
+
+### Rate Limiting (GitHub API)
+- Tracks `x-ratelimit-remaining` from every response
+- Auto-pauses and waits for reset when remaining ≤ 50
+- Budget displayed inline every 20 projects + at end of git phase
 
 ## Deployment
 
@@ -85,7 +98,7 @@ health and activity of every Apache project with 12-month rolling trends.
 
 ```
 # Weekly cron
-0 6 * * 1  rcbowen  cd /opt/asfmetrics && uv run asfmetrics --config /etc/asfmetrics/config.yml
+0 6 * * 1  rcbowen  cd /home/rbowen/devel/apache/comdev/comdev-metrics && /usr/bin/uv run asfmetrics --config /home/rbowen/devel/apache/comdev/comdev-metrics/config.yml && rsync -az --delete site/ fagin.rcbowen.com:/var/www/vhosts/boxofclue.com/comdev-metrics/
 ```
 
 Output served by httpd vhost pointing at `site/`.
@@ -103,7 +116,6 @@ or separate vhost — TBD).
 | Next Committer ↔ LDAP? | PMC-only access. Needs ASF Infra ticket for service account or OAuth. |
 | Bot filtering? | Measure contributions by PMC, committers, everyone else — and bots separately |
 | Static site hosting? | Subdirectory of community.apache.org? Separate vhost? |
-| Git cache? | Apply same immutable-month caching pattern to git_activity collector |
 
 ## Configuration
 
