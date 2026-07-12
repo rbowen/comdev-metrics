@@ -143,11 +143,6 @@ Options:
   --refresh-repos       Re-fetch the GitHub repo inventory (project → repos map)
 ```
 
-## Deployment
-
-**Dev/staging**: https://boxofclue.com/comdev-metrics/ (matrim.rcbowen.com, Alma Linux)
-**Production**: ASF ComDev VM (Ubuntu) — eventually
-
 ```
 # Weekly cron
 0 6 * * 1  rcbowen  cd /opt/asfmetrics && uv run asfmetrics --config /etc/asfmetrics/config.yml
