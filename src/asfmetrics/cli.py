@@ -22,6 +22,7 @@ from asfmetrics.collectors.projects_apache_org import (
     extract_active_projects,
 )
 from asfmetrics.output.json_api import write_json
+from asfmetrics.health import compute_project_health
 
 
 def status(msg: str):
@@ -168,7 +169,8 @@ def main():
         for i, project in enumerate(projects, 1):
             status(f"[{i}/{total}] {project}: fetching git activity...")
             try:
-                git_stats = collect_git_activity(project, config)
+                progress_str = f"[{i}/{total}] "
+                git_stats = collect_git_activity(project, config, progress=progress_str)
                 if git_stats and git_stats.get("totals", {}).get("commits", 0) > 0:
                     write_json(f"{project}_git", git_stats, config)
                     commits = git_stats["totals"]["commits"]
@@ -180,7 +182,7 @@ def main():
                     status(f"[{i}/{total}] {project}: no git activity")
             except Exception as e:
                 errors += 1
-                status(f"[{i}/{total}] {project}: error - {e}")
+                status_done(f"  ✗ {project}: {e}")
 
             # Print budget every 20 projects
             if i % 20 == 0:
@@ -196,6 +198,10 @@ def main():
                   f"({rl['used']} calls this session)")
     else:
         print("  skipping git/VCS collection (--skip-git)")
+
+    # Phase 4: Compute project health classifications
+    print("  computing project health classifications...")
+    compute_project_health(config)
 
     print("\ndone.")
 

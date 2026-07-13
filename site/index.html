@@ -123,6 +123,7 @@
         <div class="tab" data-tab="releases">Recent Releases</div>
         <div class="tab" data-tab="mailing">Mailing Lists</div>
         <div class="tab active" data-tab="projects">All Projects</div>
+        <div class="tab" data-tab="health">Project Health</div>
     </div>
 
     <div class="section" style="border-radius: 0 8px 8px 8px;">
@@ -161,9 +162,42 @@
                 <tbody></tbody>
             </table>
         </div>
+        <div class="tab-content" id="tab-health">
+            <h2 id="health-title">Project Health</h2>
+            <p id="health-window" style="color:#666;font-size:0.9rem;margin-bottom:0.5rem"></p>
+            <p style="color:#666;font-size:0.85rem;margin-bottom:1.5rem" id="health-methodology"></p>
+
+            <h3 style="color:#c0392b">🔴 Declining <span id="declining-count" style="font-weight:normal;color:#666"></span></h3>
+            <p style="color:#666;font-size:0.85rem;margin-bottom:0.5rem">Both mailing list discussion and git commits trending sharply downward.</p>
+            <table id="declining-table">
+                <thead><tr><th>Project</th><th>Mailing List</th><th>Git Commits</th><th></th></tr></thead>
+                <tbody></tbody>
+            </table>
+
+            <h3 style="color:#e67e22;margin-top:2rem">🟡 At Risk <span id="at-risk-count" style="font-weight:normal;color:#666"></span></h3>
+            <p style="color:#666;font-size:0.85rem;margin-bottom:0.5rem">One or both metrics declining significantly, with meaningful prior activity.</p>
+            <table id="at-risk-table">
+                <thead><tr><th>Project</th><th>Mailing List</th><th>Git Commits</th><th></th></tr></thead>
+                <tbody></tbody>
+            </table>
+
+            <h3 style="color:#555;margin-top:2rem">⚫ Dormant <span id="dormant-count" style="font-weight:normal;color:#666"></span></h3>
+            <p style="color:#666;font-size:0.85rem;margin-bottom:0.5rem">Near-zero activity across all metrics. Candidates for Attic retirement.</p>
+            <table id="dormant-table">
+                <thead><tr><th>Project</th><th>Mailing List (3 mo)</th><th>Git Commits (12 mo)</th></tr></thead>
+                <tbody></tbody>
+            </table>
+
+            <div style="margin-top:2rem;padding:1rem;background:#f8f9fa;border-radius:6px;font-size:0.85rem;color:#555">
+                <strong>Methodology:</strong> <span id="health-method-detail"></span><br>
+                <strong>Thresholds:</strong> Declining = both axes ≤ <span id="threshold-decline"></span>%. 
+                At Risk = one axis ≤ <span id="threshold-decline2"></span>% (min <span id="threshold-prior"></span> prior activity).
+                Dormant = ≤ <span id="threshold-dormant-commits"></span> commits + ≤ <span id="threshold-dormant-msgs"></span> messages in recent quarter.
+            </div>
+        </div>
     </div>
 
-    <p id="generated-date" style="color:#999;font-size:0.8rem;text-align:right;margin-top:1rem"></p>
+    <p id="generated-date" style="color:#999;font-size:0.8rem;text-align:right;ma
 
     </div><!-- #app -->
 
@@ -180,10 +214,11 @@
 
     async function loadData() {
         try {
-            const [committeesResp, releasesResp, newCommResp] = await Promise.all([
+            const [committeesResp, releasesResp, newCommResp, healthResp] = await Promise.all([
                 fetch('data/_cache/committees.json'),
                 fetch('data/_cache/releases.json'),
                 fetch('data/_cache/new_committers.json'),
+                fetch('data/_cache/project_health.json'),
             ]);
 
             if (!committeesResp.ok) {
@@ -195,6 +230,7 @@
             const committees = await committeesResp.json();
             const releases = releasesResp.ok ? await releasesResp.json() : {};
             const newCommData = newCommResp && newCommResp.ok ? await newCommResp.json() : {by_project: {}, total: 0};
+            const healthData = healthResp && healthResp.ok ? await healthResp.json() : null;
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('app').style.display = 'block';
@@ -372,8 +408,80 @@
                 });
             }
 
+            // --- Project Health tab ---
+            if (healthData) {
+                const win = healthData.window;
+                document.getElementById('health-title').textContent =
+                    `Project Health — ${win.recent_label} vs ${win.prior_label}`;
+                document.getElementById('health-window').textContent = win.description;
+                document.getElementById('health-methodology').textContent =
+                    'Mailing list counts include only human discussion lists (dev, user, general, discuss). ' +
+                    'Automated lists (notifications, commits, issues) are excluded. Git commits are summed across all repos.';
+
+                const thr = healthData.thresholds;
+                document.getElementById('threshold-decline').textContent = thr.decline_pct;
+                document.getElementById('threshold-decline2').textContent = thr.decline_pct;
+                document.getElementById('threshold-prior').textContent = thr.min_prior_activity;
+                document.getElementById('threshold-dormant-commits').textContent = thr.dormant_commits;
+                document.getElementById('threshold-dormant-msgs').textContent = thr.dormant_messages;
+                document.getElementById('health-method-detail').textContent =
+                    `Quarter-over-quarter comparison: ${win.recent_label} (recent) vs ${win.prior_label} (prior). ` +
+                    `Current partial month excluded. Only projects with data files are assessed.`;
+
+                document.getElementById('declining-count').textContent = `(${healthData.declining.length})`;
+                document.getElementById('at-risk-count').textContent = `(${healthData.at_risk.length})`;
+                document.getElementById('dormant-count').textContent = `(${healthData.dormant.length})`;
+
+                function trendCell(pct, prior, recent, label) {
+                    if (pct === null) return `<span style="color:#999">no data</span>`;
+                    const color = pct <= -30 ? '#c0392b' : pct <= -15 ? '#e67e22' : '#27ae60';
+                    return `<span style="color:${color};font-weight:600">${pct > 0 ? '+' : ''}${pct}%</span> ` +
+                           `<span style="color:#888;font-size:0.85rem">(${prior}→${recent} ${label})</span>`;
+                }
+
+                function fillHealthTable(tableId, entries, showBar) {
+                    const tbody = document.querySelector(`#${tableId} tbody`);
+                    entries.forEach(e => {
+                        const row = document.createElement('tr');
+                        const mlCell = trendCell(e.ml_trend_pct, e.ml_prior, e.ml_recent, 'msgs');
+                        const gitCell = trendCell(e.git_trend_pct, e.git_prior, e.git_recent, 'commits');
+                        let barHtml = '';
+                        if (showBar) {
+                            const mlW = e.ml_trend_pct !== null ? Math.min(100, Math.abs(e.ml_trend_pct)) : 0;
+                            const gitW = e.git_trend_pct !== null ? Math.min(100, Math.abs(e.git_trend_pct)) : 0;
+                            barHtml = `<td style="width:20%"><div class="bar" style="display:flex">` +
+                                `<div style="background:#e74c3c;height:100%;width:${mlW}%;border-radius:3px 0 0 3px" title="ML: ${e.ml_trend_pct || 0}%"></div>` +
+                                `<div style="background:#f39c12;height:100%;width:${gitW}%" title="Git: ${e.git_trend_pct || 0}%"></div>` +
+                                `</div></td>`;
+                        }
+                        row.innerHTML = `
+                            <td><a href="project.html?id=${e.project}">${projectNames[e.project] || e.project}</a></td>
+                            <td>${mlCell}</td>
+                            <td>${gitCell}</td>
+                            ${barHtml}
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+
+                fillHealthTable('declining-table', healthData.declining, true);
+                fillHealthTable('at-risk-table', healthData.at_risk, true);
+
+                // Dormant table is simpler
+                const dormantTbody = document.querySelector('#dormant-table tbody');
+                healthData.dormant.forEach(e => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><a href="project.html?id=${e.project}">${projectNames[e.project] || e.project}</a></td>
+                        <td>${e.ml_recent}</td>
+                        <td>${e.git_total_12mo}</td>
+                    `;
+                    dormantTbody.appendChild(row);
+                });
+            }
+
         } catch (e) {
-            document.getElementById('loading').textContent = `Error: ${e.message}`;
+            document.getElementById(
         }
     }
 
