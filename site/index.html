@@ -228,7 +228,7 @@
                     }
                 });
                 if (newCount > 0) {
-                    growthByProject[pmc.name] = { count: newCount, id: pmc.id };
+                    growthByProject[pmc.id] = { count: newCount, id: pmc.id, name: pmc.name };
                 }
             });
 
@@ -256,17 +256,22 @@
 
             // Growth table — merge PMC members + new committers
             const newCommByProject = newCommData.by_project || {};
+            // Build id->name lookup from all committees (not just ones with growth)
+            const projectNames = {};
+            committees.forEach(pmc => { projectNames[pmc.id] = pmc.name; });
+
             const allGrowthProjects = new Set([
                 ...Object.keys(growthByProject),
                 ...Object.keys(newCommByProject),
             ]);
             const growthMerged = [];
             allGrowthProjects.forEach(proj => {
-                const pmcCount = growthByProject[proj] ? growthByProject[proj].count : 0;
+                const pmcEntry = growthByProject[proj];
+                const pmcCount = pmcEntry ? pmcEntry.count : 0;
                 const commCount = newCommByProject[proj] ? newCommByProject[proj].length : 0;
-                const id = growthByProject[proj] ? growthByProject[proj].id : proj;
-                const name = growthByProject[proj] ? Object.keys(growthByProject).find(k => growthByProject[k] === growthByProject[proj]) : proj;
-                growthMerged.push({name: growthByProject[proj] ? Object.entries(growthByProject).find(([k,v]) => v.id === id)?.[0] || proj : proj, id, pmcCount, commCount, total: pmcCount + commCount});
+                const id = pmcEntry ? pmcEntry.id : proj;
+                const displayName = pmcEntry ? pmcEntry.name : (projectNames[proj] || proj);
+                growthMerged.push({name: displayName, id, pmcCount, commCount, total: pmcCount + commCount});
             });
             growthMerged.sort((a, b) => b.total - a.total);
             const maxGrowth = growthMerged.length ? growthMerged[0].total : 1;
