@@ -110,7 +110,7 @@
         </div>
         <div class="stat-card">
             <div class="number" id="new-committers-6mo">—</div>
-            <div class="label">New PMC Members (12 months)</div>
+            <div class="label">New Committers / PMC (12 mo)</div>
         </div>
         <div class="stat-card">
             <div class="number" id="releases-6mo">—</div>
@@ -127,10 +127,10 @@
 
     <div class="section" style="border-radius: 0 8px 8px 8px;">
         <div class="tab-content" id="tab-growth">
-            <h2>New PMC Member Additions (Last 12 Months)</h2>
-            <p style="color:#666;font-size:0.9rem;margin-bottom:1rem">Note: committer addition dates are not available from this data source. Only PMC membership dates are tracked.</p>
+            <h2>Community Growth (Last 12 Months)</h2>
+            <p style="color:#666;font-size:0.9rem;margin-bottom:1rem"><span style="display:inline-block;width:12px;height:12px;background:#1a73e8;border-radius:2px;vertical-align:middle"></span> New Committers &nbsp; <span style="display:inline-block;width:12px;height:12px;background:#d45500;border-radius:2px;vertical-align:middle"></span> New PMC Members</p>
             <table id="growth-table">
-                <thead><tr><th>Project</th><th>New PMC Members</th><th></th></tr></thead>
+                <thead><tr><th>Project</th><th>Committers</th><th>PMC</th><th></th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -180,9 +180,10 @@
 
     async function loadData() {
         try {
-            const [committeesResp, releasesResp] = await Promise.all([
+            const [committeesResp, releasesResp, newCommResp] = await Promise.all([
                 fetch('data/_cache/committees.json'),
                 fetch('data/_cache/releases.json'),
+                fetch('data/_cache/new_committers.json'),
             ]);
 
             if (!committeesResp.ok) {
@@ -193,6 +194,7 @@
 
             const committees = await committeesResp.json();
             const releases = releasesResp.ok ? await releasesResp.json() : {};
+            const newCommData = newCommResp && newCommResp.ok ? await newCommResp.json() : {by_project: {}, total: 0};
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('app').style.display = 'block';
@@ -249,21 +251,35 @@
             // Update stat cards
             document.getElementById('project-count').textContent = committees.length;
             document.getElementById('committer-count').textContent = totalRoster.toLocaleString();
-            document.getElementById('new-committers-6mo').textContent = newIn6Mo;
+            document.getElementById('new-committers-6mo').textContent = `${newCommData.total || 0} / ${newIn6Mo}`;
             document.getElementById('releases-6mo').textContent = releasesIn6Mo.toLocaleString();
 
-            // Growth table
-            const growthSorted = Object.entries(growthByProject)
-                .sort((a, b) => b[1].count - a[1].count);
-            const maxGrowth = growthSorted.length ? growthSorted[0][1].count : 1;
+            // Growth table — merge PMC members + new committers
+            const newCommByProject = newCommData.by_project || {};
+            const allGrowthProjects = new Set([
+                ...Object.keys(growthByProject),
+                ...Object.keys(newCommByProject),
+            ]);
+            const growthMerged = [];
+            allGrowthProjects.forEach(proj => {
+                const pmcCount = growthByProject[proj] ? growthByProject[proj].count : 0;
+                const commCount = newCommByProject[proj] ? newCommByProject[proj].length : 0;
+                const id = growthByProject[proj] ? growthByProject[proj].id : proj;
+                const name = growthByProject[proj] ? Object.keys(growthByProject).find(k => growthByProject[k] === growthByProject[proj]) : proj;
+                growthMerged.push({name: growthByProject[proj] ? Object.entries(growthByProject).find(([k,v]) => v.id === id)?.[0] || proj : proj, id, pmcCount, commCount, total: pmcCount + commCount});
+            });
+            growthMerged.sort((a, b) => b.total - a.total);
+            const maxGrowth = growthMerged.length ? growthMerged[0].total : 1;
             const growthTbody = document.querySelector('#growth-table tbody');
-            growthSorted.forEach(([name, data]) => {
-                const pct = (data.count / maxGrowth * 100).toFixed(0);
+            growthMerged.forEach(data => {
+                const pmcPct = (data.pmcCount / maxGrowth * 100).toFixed(0);
+                const commPct = (data.commCount / maxGrowth * 100).toFixed(0);
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td><a href="project.html?id=${data.id}">${name}</a></td>
-                    <td style="width:60px;text-align:right">${data.count}</td>
-                    <td style="width:40%"><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+                    <td><a href="project.html?id=${data.id}">${data.name}</a></td>
+                    <td style="width:80px;text-align:right">${data.commCount > 0 ? data.commCount : ''}</td>
+                    <td style="width:80px;text-align:right">${data.pmcCount > 0 ? data.pmcCount : ''}</td>
+                    <td style="width:35%"><div class="bar" style="display:flex"><div style="background:#1a73e8;border-radius:3px 0 0 3px;height:100%;width:${commPct}%"></div><div style="background:#d45500;height:100%;width:${pmcPct}%"></div></div></td>
                 `;
                 growthTbody.appendChild(row);
             });

@@ -11,6 +11,7 @@ Public JSON base: https://projects.apache.org/json/foundation/
 """
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -30,6 +31,11 @@ FOUNDATION_FILES = {
     "accounts-evolution2.json": "Account creation over time",
     "projects.json": "Master project metadata (from DOAP files)",
 }
+
+# Whimsy public JSON for committer creation dates
+WHIMSY_LDAP_PEOPLE = "https://whimsy.apache.org/public/public_ldap_people.json"
+# Also fetch committee-info.json from Whimsy for PMC dates (more authoritative)
+WHIMSY_COMMITTEE_INFO = "https://whimsy.apache.org/public/committee-info.json"
 
 
 def fetch_foundation_json(
@@ -192,6 +198,81 @@ def detect_roster_changes(current_data: dict, state_dir: Path) -> dict:
     return changes
 
 
+def collect_new_committers(data: dict, config: dict) -> dict:
+    """Detect new committers using Whimsy LDAP createTimestamp.
+
+    Fetches public_ldap_people.json from Whimsy and cross-references
+    with people.json to find committers created in the last 12 months,
+    grouped by project.
+
+    Returns:
+        Dict with: by_project (project -> list of {name, id, date}),
+                   total (int), by_month (YYYY-MM -> count)
+    """
+    print("    fetching Whimsy LDAP data for new committer dates...")
+
+    try:
+        resp = httpx.get(WHIMSY_LDAP_PEOPLE, timeout=60, follow_redirects=True)
+        resp.raise_for_status()
+        ldap_data = resp.json()
+    except (httpx.HTTPError, ValueError) as e:
+        print(f"    warning: failed to fetch Whimsy LDAP data: {e}")
+        return {"by_project": {}, "total": 0, "by_month": {}}
+
+    people_data = data.get("people", {})
+    ldap_people = ldap_data.get("people", ldap_data)
+
+    # 12-month cutoff
+    now = datetime.now()
+    cutoff = now.replace(year=now.year - 1)
+
+    new_committers_by_project = {}
+    by_month = {}
+    total = 0
+
+    for person_id, person_info in people_data.items():
+        if person_id not in ldap_people:
+            continue
+
+        ldap_entry = ldap_people[person_id]
+        create_ts = ldap_entry.get("createTimestamp", "")
+        if not create_ts:
+            continue
+
+        try:
+            created = datetime.strptime(create_ts, "%Y%m%d%H%M%SZ")
+        except (ValueError, TypeError):
+            continue
+
+        if created < cutoff:
+            continue
+
+        # This person was created in the last 12 months — they're a new committer
+        month_key = created.strftime("%Y-%m")
+        by_month[month_key] = by_month.get(month_key, 0) + 1
+        total += 1
+
+        for group in person_info.get("groups", []):
+            # Skip meta-groups
+            if group.endswith("-pmc") or group in ("apldap", "incubator", "member"):
+                continue
+            if group not in new_committers_by_project:
+                new_committers_by_project[group] = []
+            new_committers_by_project[group].append({
+                "name": person_info.get("name", person_id),
+                "id": person_id,
+                "date": created.strftime("%Y-%m-%d"),
+            })
+
+    print(f"    new committers (12mo): {total} across {len(new_committers_by_project)} projects")
+
+    return {
+        "by_project": new_committers_by_project,
+        "total": total,
+        "by_month": by_month,
+    }
+
+
 def collect_projects_apache_org(config: dict) -> dict:
     """Main entry point: fetch all data, detect changes, return summary.
 
@@ -211,6 +292,15 @@ def collect_projects_apache_org(config: dict) -> dict:
     active_projects = extract_active_projects(data)
     roster_changes = detect_roster_changes(data, state_dir)
 
+    # Detect new committers from Whimsy LDAP
+    new_committers = collect_new_committers(data, config)
+
+    # Save new committers data for the frontend
+    cache_dir = json_dir / "_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    with open(cache_dir / "new_committers.json", "w") as f:
+        json.dump(new_committers, f, indent=2)
+
     print(f"    {len(active_projects)} active projects")
     if roster_changes["new_roster_entries"]:
         print(f"    {len(roster_changes['new_roster_entries'])} new roster entries since last run")
@@ -220,5 +310,6 @@ def collect_projects_apache_org(config: dict) -> dict:
     return {
         "active_projects": active_projects,
         "roster_changes": roster_changes,
+        "new_committers": new_committers,
         "data": data,
     }
