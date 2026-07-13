@@ -94,7 +94,7 @@
 </head>
 <body>
     <h1>ASF Community Metrics</h1>
-    <p class="subtitle">Apache project community health — data from projects.apache.org</p>
+    <p class="subtitle">Apache project community health — <a href="about.html" style="color:#666;text-decoration:underline">about the data</a></p>
 
     <div id="loading">Loading data...</div>
     <div id="app" style="display:none">
@@ -110,7 +110,7 @@
         </div>
         <div class="stat-card">
             <div class="number" id="new-committers-6mo">—</div>
-            <div class="label">New in Last 12 Months</div>
+            <div class="label">New PMC Members (12 months)</div>
         </div>
         <div class="stat-card">
             <div class="number" id="releases-6mo">—</div>
@@ -127,9 +127,10 @@
 
     <div class="section" style="border-radius: 0 8px 8px 8px;">
         <div class="tab-content" id="tab-growth">
-            <h2>New PMC/Committer Additions (Last 6 Months)</h2>
+            <h2>New PMC Member Additions (Last 12 Months)</h2>
+            <p style="color:#666;font-size:0.9rem;margin-bottom:1rem">Note: committer addition dates are not available from this data source. Only PMC membership dates are tracked.</p>
             <table id="growth-table">
-                <thead><tr><th>Project</th><th>New Members</th><th></th></tr></thead>
+                <thead><tr><th>Project</th><th>New PMC Members</th><th></th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
@@ -162,6 +163,8 @@
         </div>
     </div>
 
+    <p id="generated-date" style="color:#999;font-size:0.8rem;text-align:right;margin-top:1rem"></p>
+
     </div><!-- #app -->
 
     <script>
@@ -193,6 +196,12 @@
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('app').style.display = 'block';
+
+            // Show data generation date from Last-Modified header
+            const lastMod = committeesResp.headers.get('Last-Modified');
+            if (lastMod) {
+                document.getElementById('generated-date').textContent = `Data generated: ${new Date(lastMod).toLocaleDateString('en-US', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})}`;
+            }
 
             const sixMonthsAgo = new Date();
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 12);
