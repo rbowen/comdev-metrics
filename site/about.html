@@ -76,6 +76,11 @@
                     <td><a href="https://github.com/apache">GitHub API</a></td>
                     <td>Full org listing — classifies 3000+ repos into projects</td>
                 </tr>
+                <tr>
+                    <td><strong>New committer dates</strong></td>
+                    <td><a href="https://whimsy.apache.org/public/public_ldap_people.json">Whimsy LDAP</a></td>
+                    <td>Account creation timestamps from <code>public_ldap_people.json</code>, cross-referenced with project group membership</td>
+                </tr>
             </tbody>
         </table>
     </div>
@@ -86,9 +91,14 @@
             <li>A collector runs weekly, fetching data from the sources above.</li>
             <li>Data is cached aggressively — past months are immutable and never re-fetched.</li>
             <li>Only the current month's data is refreshed on each run.</li>
+            <li>After collection, a health classification pass computes project status
+            (At Risk / Declining / Dormant / Healthy) from the collected data using fixed thresholds.</li>
             <li>The output is static HTML + JSON — no live server or database.</li>
             <li>Trend lines use linear regression over a 12-month rolling window.</li>
             <li>The current (incomplete) month is extrapolated to a full-month estimate for trend accuracy.</li>
+            <li>Each project has a dedicated page showing all its metrics in one place —
+            mailing lists (linked to <a href="https://lists.apache.org/">lists.apache.org</a> archives),
+            git repos, releases, community growth, and health status.</li>
         </ul>
     </div>
 
@@ -105,22 +115,49 @@
         <code>svn log</code> — no checkout required.</p>
 
         <h3>Community Growth</h3>
-        <p>New PMC member additions (from roster dates in projects.apache.org). Note:
-        committer addition dates are not available from this data source — only PMC
-        membership dates are tracked.</p>
+        <p>Tracks both new committers and new PMC members:</p>
+        <ul>
+            <li><strong>New committers</strong> — detected via LDAP <code>createTimestamp</code> from
+            <a href="https://whimsy.apache.org/public/public_ldap_people.json">Whimsy</a>,
+            cross-referenced with <code>people.json</code> group membership to determine project affiliation.</li>
+            <li><strong>New PMC members</strong> — from roster dates in the committees data on projects.apache.org.</li>
+        </ul>
+        <p>The Community Growth tab on the overview page shows both in a two-color chart
+        (blue = committers, orange = PMC members). Per-project pages list individual names and dates.</p>
 
         <h3>Releases</h3>
         <p>Release publications in the past 12 months, as recorded by projects.apache.org.</p>
+
+        <h3>Project Health</h3>
+        <p>A deterministic classification computed from the collected data. Compares the two
+        most recent full quarters (excluding the current partial month) for both mailing list
+        discussion activity and git commit volume.</p>
+        <ul>
+            <li><strong>🔴 At Risk</strong> — both mailing list and git activity declining ≥ 30% quarter-over-quarter. Immediate attention needed.</li>
+            <li><strong>🟡 Declining</strong> — one metric declining ≥ 30%, with meaningful prior activity (≥ 30 messages or commits in the prior quarter). If the other metric is growing ≥ 30%, the project is not flagged.</li>
+            <li><strong>⚫ Dormant</strong> — fewer than 5 commits and 5 mailing list messages in the recent quarter.</li>
+            <li><strong>🟢 Healthy</strong> — no significant decline detected (shown on per-project pages only).</li>
+        </ul>
+        <p>Only human discussion lists (dev, user, general, discuss) are counted for mailing list
+        trends — automated lists (notifications, commits, issues) are excluded. The thresholds are
+        fixed constants, not heuristic or ML-based.</p>
     </div>
 
     <div class="section">
         <h2>Limitations</h2>
         <ul>
-            <li>Committer join dates are not tracked (only PMC member dates are available).</li>
+            <li>Committer detection relies on LDAP <code>createTimestamp</code> — this reflects
+            when the ASF account was created, which is typically the committer grant date but
+            may differ slightly for people who had accounts before being invited to a project.</li>
             <li>Release counts may include multiple artifacts per release for some projects.</li>
             <li>Bot activity is not yet filtered from commit/PR counts.</li>
             <li>Projects that are SVN-only but not yet detected may show zero git activity.</li>
             <li>GitHub API rate limits (5000/hour) mean large initial runs may take 1–2 hours.</li>
+            <li>Some projects use Slack, Discord, or GitHub Discussions as primary discussion
+            channels — mailing list declines may not reflect actual community decline for those projects.</li>
+            <li>Quarter-over-quarter comparison can be noisy for projects with bursty release
+            cycles or seasonal patterns. A single quarter's decline does not necessarily indicate
+            a long-term trend.</li>
         </ul>
     </div>
 
