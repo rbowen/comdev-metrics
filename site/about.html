@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About the Data — ASF Community Metrics</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.8;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            background: #f8f9fa;
+        }
+        h1 { margin-bottom: 0.25rem; color: #1a1a2e; }
+        h2 { margin-top: 2rem; margin-bottom: 0.5rem; color: #1a1a2e; }
+        h3 { margin-top: 1.5rem; margin-bottom: 0.3rem; color: #444; }
+        a { color: #d45500; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .breadcrumb { color: #666; margin-bottom: 1.5rem; font-size: 0.9rem; }
+        .section {
+            background: white; border-radius: 8px; padding: 1.5rem;
+            margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        th, td { text-align: left; padding: 0.5rem 0.8rem; border-bottom: 1px solid #eee; }
+        th { font-weight: 600; color: #666; font-size: 0.85rem; }
+        code { background: #f0f0f0; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.9em; }
+        ul { margin-left: 1.5rem; margin-bottom: 1rem; }
+        li { margin-bottom: 0.3rem; }
+    </style>
+</head>
+<body>
+    <div class="breadcrumb"><a href="index.html">← Dashboard</a></div>
+    <h1>About the Data</h1>
+
+    <div class="section">
+        <h2>Data Sources</h2>
+        <p>This dashboard collects data from multiple public sources. No authentication
+        or special access is required — everything shown here is derived from
+        publicly available information.</p>
+
+        <table>
+            <thead><tr><th>What</th><th>Source</th><th>How</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td><strong>Mailing list activity</strong></td>
+                    <td><a href="https://lists.apache.org/">Pony Mail</a></td>
+                    <td>POST to <code>/api/stats.json</code> — message counts per month, per list</td>
+                </tr>
+                <tr>
+                    <td><strong>Git commits &amp; PRs</strong></td>
+                    <td><a href="https://github.com/apache">GitHub API</a></td>
+                    <td>Commits and pull request activity per repo, aggregated monthly</td>
+                </tr>
+                <tr>
+                    <td><strong>SVN commits</strong></td>
+                    <td><a href="https://svn.apache.org/">ASF Subversion</a></td>
+                    <td><code>svn log --xml</code> against remote repos (no checkout needed)</td>
+                </tr>
+                <tr>
+                    <td><strong>Project roster &amp; PMC data</strong></td>
+                    <td><a href="https://projects.apache.org/">projects.apache.org</a></td>
+                    <td>Daily-generated JSON from LDAP, Whimsy, and committee-info.txt</td>
+                </tr>
+                <tr>
+                    <td><strong>Releases</strong></td>
+                    <td><a href="https://projects.apache.org/">projects.apache.org</a></td>
+                    <td>Release history JSON (scraped from dist archives)</td>
+                </tr>
+                <tr>
+                    <td><strong>Repository inventory</strong></td>
+                    <td><a href="https://github.com/apache">GitHub API</a></td>
+                    <td>Full org listing — classifies 3000+ repos into projects</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>How It Works</h2>
+        <ul>
+            <li>A collector runs weekly, fetching data from the sources above.</li>
+            <li>Data is cached aggressively — past months are immutable and never re-fetched.</li>
+            <li>Only the current month's data is refreshed on each run.</li>
+            <li>The output is static HTML + JSON — no live server or database.</li>
+            <li>Trend lines use linear regression over a 12-month rolling window.</li>
+            <li>The current (incomplete) month is extrapolated to a full-month estimate for trend accuracy.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>What's Measured</h2>
+
+        <h3>Mailing Lists</h3>
+        <p>Monthly message volume per list. All lists with traffic in the past 12 months
+        are shown. Covers dev@, user@, issues@, commits@, and other project-specific lists.</p>
+
+        <h3>Git/VCS Activity</h3>
+        <p>Per-repository commit counts and unique committers (monthly). For GitHub repos,
+        also tracks pull requests opened, merged, and closed. SVN projects use remote
+        <code>svn log</code> — no checkout required.</p>
+
+        <h3>Community Growth</h3>
+        <p>New PMC member additions (from roster dates in projects.apache.org). Note:
+        committer addition dates are not available from this data source — only PMC
+        membership dates are tracked.</p>
+
+        <h3>Releases</h3>
+        <p>Release publications in the past 12 months, as recorded by projects.apache.org.</p>
+    </div>
+
+    <div class="section">
+        <h2>Limitations</h2>
+        <ul>
+            <li>Committer join dates are not tracked (only PMC member dates are available).</li>
+            <li>Release counts may include multiple artifacts per release for some projects.</li>
+            <li>Bot activity is not yet filtered from commit/PR counts.</li>
+            <li>Projects that are SVN-only but not yet detected may show zero git activity.</li>
+            <li>GitHub API rate limits (5000/hour) mean large initial runs may take 1–2 hours.</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Source Code</h2>
+        <p>The collector and dashboard are open source:</p>
+        <ul>
+            <li><a href="https://github.com/rbowen/comdev-metrics">github.com/rbowen/comdev-metrics</a></li>
+        </ul>
+        <p>Feedback and contributions welcome. See <code>README.md</code> for setup instructions.</p>
+    </div>
+
+</body>
+</html>
