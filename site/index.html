@@ -481,7 +481,8 @@
             }
 
         } catch (e) {
-            document.getElementById(
+            console.error('Failed to load data:', e);
+            document.getElementById('loading').textContent = 'Error loading data: ' + e.message;
         }
     }
 
