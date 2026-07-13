@@ -180,9 +180,15 @@ def _save_cache(project: str, cache_data: dict, config: dict) -> None:
 
 
 def _cache_is_current(cache: dict) -> bool:
-    """Check if cache was already fetched this month."""
+    """Check if cache was fetched recently enough to skip.
+
+    Returns True only if fetched today (same date). For a weekly cron,
+    this means each run will refresh the current month's data, but
+    running multiple times in one day won't hit the API repeatedly.
+    """
     fetched_at = cache.get("_fetched_at", "")
-    return fetched_at[:7] == _current_month_str()
+    today = datetime.now().strftime("%Y-%m-%d")
+    return fetched_at == today
 
 
 def invalidate_git_cache(config: dict) -> None:
@@ -251,8 +257,8 @@ def _fetch_github_commits(
                     pass
 
             author = (
-                c.get("author", {}).get("login")
-                or c.get("commit", {}).get("author", {}).get("name", "unknown")
+                (c.get("author") or {}).get("login")
+                or (c.get("commit") or {}).get("author", {}).get("name", "unknown")
             )
 
             if commit_date:
@@ -334,6 +340,8 @@ def _aggregate_github_monthly(
     org: str,
     since: datetime,
     token: str | None,
+    project: str = "",
+    progress: str = "",
 ) -> dict:
     """Fetch GitHub data per-repo into monthly buckets.
 
@@ -341,7 +349,12 @@ def _aggregate_github_monthly(
     """
     per_repo = {}
 
-    for repo in repos:
+    total_repos = len(repos)
+    for repo_idx, repo in enumerate(repos, 1):
+        import sys
+        sys.stdout.write(f"\r\033[K  {progress}{project}: [{repo_idx}/{total_repos}] {org}/{repo} — fetching commits...")
+        sys.stdout.flush()
+
         monthly_commits = defaultdict(int)
         monthly_committers = defaultdict(set)
         monthly_prs_opened = defaultdict(int)
@@ -354,6 +367,9 @@ def _aggregate_github_monthly(
             month = _month_key(c["date"])
             monthly_commits[month] += 1
             monthly_committers[month].add(c["author"])
+
+        sys.stdout.write(f"\r\033[K  {progress}{project}: [{repo_idx}/{total_repos}] {org}/{repo} — {len(commits)} commits, fetching PRs...")
+        sys.stdout.flush()
 
         # PRs
         prs = _fetch_github_prs(org, repo, since, token)
@@ -386,6 +402,11 @@ def _aggregate_github_monthly(
                 }
             per_repo[repo] = repo_data
 
+        rl_remaining = _rate_limit["remaining"]
+        rl_info = f" [API: {rl_remaining}]" if rl_remaining is not None else ""
+        sys.stdout.write(f"\r\033[K  {progress}{project}: [{repo_idx}/{total_repos}] {org}/{repo} ✓ {len(commits)} commits, {len(prs)} PRs{rl_info}")
+        sys.stdout.flush()
+
     return per_repo
 
 
@@ -396,6 +417,7 @@ def collect_github_activity(
     org: str,
     token: str | None,
     config: dict,
+    progress: str = "",
 ) -> dict:
     """Collect Git activity metrics per-repo for a project via GitHub API, with caching.
 
@@ -409,16 +431,18 @@ def collect_github_activity(
         return _build_result_from_cache(project, "github", cache, org=org, repos=repos)
 
     if cache and cache.get("repos_data"):
-        # Stale cache — only fetch current month for each repo
-        since = _first_of_month(current_month)
-        fresh = _aggregate_github_monthly(repos, org, since, token)
+        # Stale cache — re-fetch from the date of last fetch (inclusive)
+        # Overlap is fine: monthly data gets overwritten, not appended
+        fetched_at = cache.get("_fetched_at", "")
+        since = datetime.strptime(fetched_at, "%Y-%m-%d") if fetched_at else _twelve_months_ago()
+        fresh = _aggregate_github_monthly(repos, org, since, token, project=project, progress=progress)
 
         cached_repos = cache.get("repos_data", {})
         for repo_name, fresh_months in fresh.items():
             if repo_name not in cached_repos:
                 cached_repos[repo_name] = {}
-            if current_month in fresh_months:
-                cached_repos[repo_name][current_month] = fresh_months[current_month]
+            for month_key, month_data in fresh_months.items():
+                cached_repos[repo_name][month_key] = month_data
 
         cache["repos_data"] = cached_repos
         cache["_fetched_at"] = datetime.now().strftime("%Y-%m-%d")
@@ -427,7 +451,7 @@ def collect_github_activity(
 
     # No cache — full 12-month fetch
     since = _twelve_months_ago()
-    repos_data = _aggregate_github_monthly(repos, org, since, token)
+    repos_data = _aggregate_github_monthly(repos, org, since, token, project=project, progress=progress)
 
     cache_data = {
         "_fetched_at": datetime.now().strftime("%Y-%m-%d"),
@@ -522,6 +546,7 @@ def collect_svn_activity(
     project: str,
     svn_url: str,
     config: dict,
+    progress: str = "",
 ) -> dict:
     """Collect commit activity from SVN, with caching. Same per-repo structure."""
     current_month = _current_month_str()
@@ -531,15 +556,16 @@ def collect_svn_activity(
         return _build_result_from_cache(project, "svn", cache, svn_url=svn_url)
 
     if cache and cache.get("repos_data"):
-        since = _first_of_month(current_month)
+        fetched_at = cache.get("_fetched_at", "")
+        since = datetime.strptime(fetched_at, "%Y-%m-%d") if fetched_at else _twelve_months_ago()
         fresh = _aggregate_svn_monthly(svn_url, since, project)
 
         cached_repos = cache.get("repos_data", {})
         for repo_name, fresh_months in fresh.items():
             if repo_name not in cached_repos:
                 cached_repos[repo_name] = {}
-            if current_month in fresh_months:
-                cached_repos[repo_name][current_month] = fresh_months[current_month]
+            for month_key, month_data in fresh_months.items():
+                cached_repos[repo_name][month_key] = month_data
 
         cache["repos_data"] = cached_repos
         cache["_fetched_at"] = datetime.now().strftime("%Y-%m-%d")
@@ -669,7 +695,7 @@ def _empty_result(project: str, vcs: str, url: str) -> dict:
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def collect_git_activity(project: str, config: dict) -> dict | None:
+def collect_git_activity(project: str, config: dict, progress: str = "") -> dict | None:
     """Collect VCS activity metrics for a project.
 
     Determines the correct backend (github/svn) from config and
@@ -689,6 +715,25 @@ def collect_git_activity(project: str, config: dict) -> dict | None:
     # Determine VCS backend for this project
     vcs = overrides.get("vcs", git_config.get("backend", "github"))
 
+    # Auto-detect SVN-only projects from repositories.json
+    if vcs == "github" and not overrides.get("vcs"):
+        json_dir = Path(config.get("output", {}).get("json_dir", "./site/data/"))
+        repos_cache = json_dir / "_cache" / "repositories.json"
+        if repos_cache.exists():
+            with open(repos_cache) as f:
+                all_repos = json.load(f)
+            # Check if project has SVN but no git repos
+            has_svn = f"{project}-svn" in all_repos
+            has_git = any(
+                k == project or (k.startswith(f"{project}-") and not k.endswith("-svn"))
+                for k in all_repos.keys()
+            )
+            if has_svn and not has_git:
+                vcs = "svn"
+                svn_url = all_repos.get(f"{project}-svn", "")
+                if svn_url.startswith("http"):
+                    return collect_svn_activity(project, svn_url.rstrip("/") + "/trunk", config, progress=progress)
+
     if vcs == "svn":
         # SVN backend
         svn_url = overrides.get("svn_path")
@@ -697,7 +742,7 @@ def collect_git_activity(project: str, config: dict) -> dict | None:
         if not svn_url:
             svn_url = f"{ASF_SVN_BASE}/{project}/trunk"
 
-        return collect_svn_activity(project, svn_url, config)
+        return collect_svn_activity(project, svn_url, config, progress=progress)
 
     elif vcs == "github":
         # GitHub backend
@@ -724,7 +769,7 @@ def collect_git_activity(project: str, config: dict) -> dict | None:
             if not repos:
                 repos = [project]
 
-        return collect_github_activity(project, repos, org, token, config)
+        return collect_github_activity(project, repos, org, token, config, progress=progress)
 
     else:
         print(f"    warning: unknown VCS backend '{vcs}' for {project}")

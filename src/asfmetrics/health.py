@@ -181,6 +181,8 @@ def compute_project_health(config: dict) -> dict:
         git_declining = git_pct is not None and git_pct <= DECLINE_THRESHOLD
         ml_moderate = ml_pct is not None and ml_pct <= MODERATE_DECLINE
         git_moderate = git_pct is not None and git_pct <= MODERATE_DECLINE
+        ml_growing = ml_pct is not None and ml_pct >= -DECLINE_THRESHOLD  # +30% or more
+        git_growing = git_pct is not None and git_pct >= -DECLINE_THRESHOLD
 
         # Declining: both axes down sharply
         if ml_declining and git_declining:
@@ -190,11 +192,12 @@ def compute_project_health(config: dict) -> dict:
         elif git_pct is not None and git_pct <= -60 and ml_moderate:
             declining.append(entry)
         # At Risk: one axis down sharply (with meaningful prior activity)
-        elif ml_declining and (ml_prior >= MIN_PRIOR_ACTIVITY or git_prior >= MIN_PRIOR_ACTIVITY):
+        # But NOT if the other axis is growing strongly (compensating)
+        elif ml_declining and not git_growing and (ml_prior >= MIN_PRIOR_ACTIVITY or git_prior >= MIN_PRIOR_ACTIVITY):
             at_risk.append(entry)
-        elif git_declining and (ml_prior >= MIN_PRIOR_ACTIVITY or git_prior >= MIN_PRIOR_ACTIVITY):
+        elif git_declining and not ml_growing and (ml_prior >= MIN_PRIOR_ACTIVITY or git_prior >= MIN_PRIOR_ACTIVITY):
             at_risk.append(entry)
-        elif ml_moderate and git_moderate and (ml_prior >= MIN_PRIOR_ACTIVITY or git_prior >= MIN_PRIOR_ACTIVITY):
+        elif ml_moderate and git_moderate and not ml_growing and not git_growing and (ml_prior >= MIN_PRIOR_ACTIVITY or git_prior >= MIN_PRIOR_ACTIVITY):
             at_risk.append(entry)
 
     # Sort by severity (combined trend percentage, most negative first)

@@ -108,6 +108,9 @@
         </div>
     </div>
 
+    <div id="health-badge" style="display:none;margin-bottom:1.5rem;padding:0.8rem 1.2rem;border-radius:8px;font-size:0.95rem">
+    </div>
+
     <div class="section">
         <h2>Mailing List Activity (12 Months)</h2>
         <table id="lists-table">
@@ -155,6 +158,15 @@
     <div class="section" id="project-links-section" style="display:none">
         <h2>Project Info</h2>
         <p id="project-links"></p>
+    </div>
+
+    <div class="section" id="growth-section" style="display:none">
+        <h2>Community Growth (Last 12 Months)</h2>
+        <table id="growth-table">
+            <thead><tr><th>Name</th><th>Date Added</th><th>Type</th></tr></thead>
+            <tbody></tbody>
+        </table>
+        <p id="growth-none" style="display:none;color:#666;font-style:italic">No new committers or PMC members added in the last 12 months.</p>
     </div>
 
     </div><!-- #app -->
@@ -227,7 +239,7 @@
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${list.list_name}@${ml.domain}</td>
+                        <td>${list.list_name}@${ml.domain} <a href="https://lists.apache.org/list.html?${list.list_name}@${ml.domain}" target="_blank" title="View archive on lists.apache.org" style="margin-left:0.4rem">✉️</a></td>
                         <td>${quarterTotal}</td>
                         <td><div class="sparkline">${sparkHtml}</div></td>
                     `;
@@ -366,6 +378,72 @@
                     }
                 }
             }
+
+            // --- Health status badge ---
+            try {
+                const healthResp = await fetch('data/_cache/project_health.json');
+                if (healthResp.ok) {
+                    const health = await healthResp.json();
+                    const badge = document.getElementById('health-badge');
+                    const win = health.window;
+
+                    const inDeclining = health.declining.find(e => e.project === id);
+                    const inAtRisk = health.at_risk.find(e => e.project === id);
+                    const inDormant = health.dormant.find(e => e.project === id);
+
+                    if (inDormant) {
+                        badge.style.display = 'block';
+                        badge.style.background = '#f0f0f0';
+                        badge.style.borderLeft = '4px solid #555';
+                        badge.innerHTML = `<strong>⚫ Dormant</strong> — Near-zero activity across all metrics (${win.recent_label}).`;
+                    } else if (inDeclining) {
+                        badge.style.display = 'block';
+                        badge.style.background = '#fdf2f2';
+                        badge.style.borderLeft = '4px solid #c0392b';
+                        const mlStr = inDeclining.ml_trend_pct !== null ? `ML: ${inDeclining.ml_trend_pct}%` : '';
+                        const gitStr = inDeclining.git_trend_pct !== null ? `Git: ${inDeclining.git_trend_pct}%` : '';
+                        badge.innerHTML = `<strong>🔴 At Risk</strong> — Both mailing list and git activity declining sharply (${win.prior_label} → ${win.recent_label}). ${mlStr} ${gitStr}`;
+                    } else if (inAtRisk) {
+                        badge.style.display = 'block';
+                        badge.style.background = '#fef9e7';
+                        badge.style.borderLeft = '4px solid #e67e22';
+                        const mlStr = inAtRisk.ml_trend_pct !== null ? `ML: ${inAtRisk.ml_trend_pct}%` : '';
+                        const gitStr = inAtRisk.git_trend_pct !== null ? `Git: ${inAtRisk.git_trend_pct}%` : '';
+                        badge.innerHTML = `<strong>🟡 Declining</strong> — Activity trending downward (${win.prior_label} → ${win.recent_label}). ${mlStr} ${gitStr}`;
+                    } else {
+                        badge.style.display = 'block';
+                        badge.style.background = '#eafaf1';
+                        badge.style.borderLeft = '4px solid #27ae60';
+                        badge.innerHTML = `<strong>🟢 Healthy</strong> — No significant decline detected (${win.prior_label} → ${win.recent_label}).`;
+                    }
+                }
+            } catch(healthErr) { console.warn('Health data not available:', healthErr); }
+
+            // --- Community growth (new committers + PMC members) ---
+            try {
+                const ncResp = await fetch('data/_cache/new_committers.json');
+                if (ncResp.ok) {
+                    const nc = await ncResp.json();
+                    const projectCommitters = nc.by_project[id] || [];
+
+                    // Also check PMC roster for recent additions
+                    const growthSection = document.getElementById('growth-section');
+                    growthSection.style.display = 'block';
+
+                    if (projectCommitters.length === 0) {
+                        document.getElementById('growth-none').style.display = 'block';
+                        document.querySelector('#growth-table').style.display = 'none';
+                    } else {
+                        const tbody = document.querySelector('#growth-table tbody');
+                        projectCommitters.sort((a, b) => b.date.localeCompare(a.date));
+                        projectCommitters.forEach(p => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `<td>${p.name}</td><td>${p.date}</td><td>Committer</td>`;
+                            tbody.appendChild(row);
+                        });
+                    }
+                }
+            } catch(ncErr) { console.warn('New committers data not available:', ncErr); }
 
         } catch(e) {
             document.getElementById('error').style.display = 'block';

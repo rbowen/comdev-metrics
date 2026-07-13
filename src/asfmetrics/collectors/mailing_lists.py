@@ -79,15 +79,14 @@ def _save_cache(project: str, cache_data: dict, config: dict) -> None:
 
 
 def _cache_is_current(cache: dict) -> bool:
-    """Check if cache has already been fetched this month.
+    """Check if cache was fetched today (same date).
 
-    If _fetched_at matches the current month, all data is current
-    (past months are immutable, and the current month was fetched today
-    or at least this month).
+    Same-day re-runs skip (saves API calls during testing).
+    Next-day or later runs always refresh current month data.
     """
     fetched_at = cache.get("_fetched_at", "")
-    # Compare YYYY-MM portion
-    return fetched_at[:7] == _current_month_str()
+    today = datetime.now().strftime("%Y-%m-%d")
+    return fetched_at == today
 
 
 def discover_lists(base_url: str = PONYMAIL_API) -> dict:
@@ -158,11 +157,14 @@ def _fetch_current_month_stats(
     domain: str,
     base_url: str = PONYMAIL_API,
 ) -> dict | None:
-    """Fetch stats for just the current month (1M window).
+    """Fetch stats for the current + previous month (2M window).
 
-    Used for incremental cache updates — only refreshes the current month.
+    Used for incremental cache updates. We use 2M (not 1M) because if
+    the last run was late in the previous month, the previous month's
+    final count may have increased since then. Two months guarantees
+    we pick up the tail end of the previous month.
     """
-    return collect_list_stats(list_name, domain, base_url, timespan="1M", quick=True)
+    return collect_list_stats(list_name, domain, base_url, timespan="2M", quick=True)
 
 
 def collect_mailing_list_stats(project: str, config: dict) -> dict | None:
@@ -218,14 +220,13 @@ def collect_mailing_list_stats(project: str, config: dict) -> dict | None:
             stats = _fetch_current_month_stats(list_name, domain, base_url)
             if stats:
                 months = stats.get("active_months", {})
-                # Update just the current month in the cached months
+                # Update current + previous month in the cached months
+                # (2M window covers both; previous month may have grown since last fetch)
                 cached_months = list_data.get("active_months", {})
-                if current_month in months:
-                    cached_months[current_month] = months[current_month]
-                elif current_month not in cached_months:
-                    # API returned no data for current month — set to 0
-                    # (or leave missing, either is fine)
-                    pass
+                for month_key, count in months.items():
+                    # Overwrite any month returned by the 2M window
+                    # (current month + previous month)
+                    cached_months[month_key] = count
                 list_data["active_months"] = cached_months
                 # Update totals from the full month range
                 list_data["messages"] = sum(
