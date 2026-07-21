@@ -1,7 +1,7 @@
 # ComDev Metrics Site — Execution Plan
 
 Public, automated dashboard at **community.apache.org/metrics/** showing
-health and activity of every Apache project with 12-month rolling trends.
+activity of every Apache project with 12-month rolling trends.
 
 ## Design Principles
 
@@ -55,8 +55,9 @@ health and activity of every Apache project with 12-month rolling trends.
 | 5 | Static HTML dashboard + per-project pages (default: All Projects tab) | | ✅ Done |
 | 6 | Roster change detection (projects.apache.org JSON diffing) | | ✅ Done |
 | 7 | Deploy to ComDev VM for demo | | ⬜ |
-| 8 | Next Committer integration (PMC-only, LDAP gated) | | ⬜ |
-| 9 | Production deployment on ComDev VM | | ⬜ |
+| 8 | Single-project self-serve mode | | ⬜ |
+| 9 | Next Committer integration (PMC-only, LDAP gated) | | ⬜ |
+| 10 | Production deployment on ComDev VM | | ⬜ |
 
 **Status:** Dashboard running at https://boxofclue.com/comdev-metrics/
 

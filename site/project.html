@@ -108,7 +108,7 @@
         </div>
     </div>
 
-    <div id="health-badge" style="display:none;margin-bottom:1.5rem;padding:0.8rem 1.2rem;border-radius:8px;font-size:0.95rem">
+    <div id="trend-badge" style="display:none;margin-bottom:1.5rem;padding:0.8rem 1.2rem;border-radius:8px;font-size:0.95rem">
     </div>
 
     <div class="section">
@@ -379,45 +379,42 @@
                 }
             }
 
-            // --- Health status badge ---
+            // --- Activity trend badge ---
             try {
-                const healthResp = await fetch('data/_cache/project_health.json');
-                if (healthResp.ok) {
-                    const health = await healthResp.json();
-                    const badge = document.getElementById('health-badge');
-                    const win = health.window;
+                const trendResp = await fetch('data/_cache/project_health.json');
+                if (trendResp.ok) {
+                    const trendData = await trendResp.json();
+                    const badge = document.getElementById('trend-badge');
+                    const win = trendData.window;
 
-                    const inDeclining = health.declining.find(e => e.project === id);
-                    const inAtRisk = health.at_risk.find(e => e.project === id);
-                    const inDormant = health.dormant.find(e => e.project === id);
+                    const inDeclining = trendData.declining.find(e => e.project === id);
+                    const inAtRisk = trendData.at_risk.find(e => e.project === id);
+                    const inDormant = trendData.dormant.find(e => e.project === id);
 
                     if (inDormant) {
                         badge.style.display = 'block';
                         badge.style.background = '#f0f0f0';
                         badge.style.borderLeft = '4px solid #555';
-                        badge.innerHTML = `<strong>⚫ Dormant</strong> — Near-zero activity across all metrics (${win.recent_label}).`;
+                        badge.innerHTML = `<strong>⚫ Dormant</strong> — Near-zero activity in ${win.recent_label}: fewer than 5 commits and 5 mailing list messages.`;
                     } else if (inDeclining) {
                         badge.style.display = 'block';
                         badge.style.background = '#fdf2f2';
                         badge.style.borderLeft = '4px solid #c0392b';
                         const mlStr = inDeclining.ml_trend_pct !== null ? `ML: ${inDeclining.ml_trend_pct}%` : '';
                         const gitStr = inDeclining.git_trend_pct !== null ? `Git: ${inDeclining.git_trend_pct}%` : '';
-                        badge.innerHTML = `<strong>🔴 At Risk</strong> — Both mailing list and git activity declining sharply (${win.prior_label} → ${win.recent_label}). ${mlStr} ${gitStr}`;
+                        badge.innerHTML = `<strong>🔴 Sharp Decline</strong> — Both mailing list and git activity down ≥ 30% (${win.prior_label} → ${win.recent_label}). ${mlStr} ${gitStr}`;
                     } else if (inAtRisk) {
                         badge.style.display = 'block';
                         badge.style.background = '#fef9e7';
                         badge.style.borderLeft = '4px solid #e67e22';
                         const mlStr = inAtRisk.ml_trend_pct !== null ? `ML: ${inAtRisk.ml_trend_pct}%` : '';
                         const gitStr = inAtRisk.git_trend_pct !== null ? `Git: ${inAtRisk.git_trend_pct}%` : '';
-                        badge.innerHTML = `<strong>🟡 Declining</strong> — Activity trending downward (${win.prior_label} → ${win.recent_label}). ${mlStr} ${gitStr}`;
+                        badge.innerHTML = `<strong>🟡 Declining</strong> — One or both metrics down ≥ 30% (${win.prior_label} → ${win.recent_label}). ${mlStr} ${gitStr}`;
                     } else {
-                        badge.style.display = 'block';
-                        badge.style.background = '#eafaf1';
-                        badge.style.borderLeft = '4px solid #27ae60';
-                        badge.innerHTML = `<strong>🟢 Healthy</strong> — No significant decline detected (${win.prior_label} → ${win.recent_label}).`;
+                        // No badge shown for projects without notable trends — the data speaks for itself
                     }
                 }
-            } catch(healthErr) { console.warn('Health data not available:', healthErr); }
+            } catch(trendErr) { console.warn('Trend data not available:', trendErr); }
 
             // --- Community growth (new committers + PMC members) ---
             try {

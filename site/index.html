@@ -94,7 +94,7 @@
 </head>
 <body>
     <h1>ASF Community Metrics</h1>
-    <p class="subtitle">Apache project community health — <a href="about.html" style="color:#666;text-decoration:underline">about the data</a></p>
+    <p class="subtitle">Apache project metrics — <a href="about.html" style="color:#666;text-decoration:underline">about the data</a></p>
 
     <div id="loading">Loading data...</div>
     <div id="app" style="display:none">
@@ -123,7 +123,7 @@
         <div class="tab" data-tab="releases">Recent Releases</div>
         <div class="tab" data-tab="mailing">Mailing Lists</div>
         <div class="tab active" data-tab="projects">All Projects</div>
-        <div class="tab" data-tab="health">Project Health</div>
+        <div class="tab" data-tab="health">Activity Trends</div>
     </div>
 
     <div class="section" style="border-radius: 0 8px 8px 8px;">
@@ -163,7 +163,7 @@
             </table>
         </div>
         <div class="tab-content" id="tab-health">
-            <h2 id="health-title">Project Health</h2>
+            <h2 id="health-title">Activity Trends</h2>
             <p id="health-window" style="color:#666;font-size:0.9rem;margin-bottom:0.5rem"></p>
             <p style="color:#666;font-size:0.85rem;margin-bottom:1.5rem" id="health-methodology"></p>
 
@@ -174,8 +174,8 @@
                 <tbody></tbody>
             </table>
 
-            <h3 style="color:#c0392b;margin-top:2rem">🔴 At Risk <span id="at-risk-count" style="font-weight:normal;color:#666"></span></h3>
-            <p style="color:#666;font-size:0.85rem;margin-bottom:0.5rem">Both mailing list discussion and git commits trending sharply downward. Immediate attention needed.</p>
+            <h3 style="color:#c0392b;margin-top:2rem">🔴 Sharp Decline <span id="at-risk-count" style="font-weight:normal;color:#666"></span></h3>
+            <p style="color:#666;font-size:0.85rem;margin-bottom:0.5rem">Both mailing list discussion and git commits down ≥ 30% quarter-over-quarter.</p>
             <table id="at-risk-table">
                 <thead><tr><th>Project</th><th class="health-ml-header">Mailing List (Q1 vs Q2)</th><th class="health-git-header">Git Commits (Q1 vs Q2)</th></tr></thead>
                 <tbody></tbody>
@@ -190,7 +190,7 @@
 
             <div style="margin-top:2rem;padding:1rem;background:#f8f9fa;border-radius:6px;font-size:0.85rem;color:#555">
                 <strong>Methodology:</strong> <span id="health-method-detail"></span><br>
-                <strong>Thresholds:</strong> At Risk = both axes ≤ <span id="threshold-decline"></span>%. 
+                <strong>Thresholds:</strong> Sharp Decline = both axes ≤ <span id="threshold-decline"></span>%. 
                 Declining = one axis ≤ <span id="threshold-decline2"></span>% (min <span id="threshold-prior"></span> prior activity).
                 Dormant = ≤ <span id="threshold-dormant-commits"></span> commits + ≤ <span id="threshold-dormant-msgs"></span> messages in recent quarter.
             </div>
@@ -406,7 +406,7 @@
                 });
             }
 
-            // --- Project Health tab ---
+            // --- Activity Trends tab ---
             let healthData = null;
             try {
                 const healthResp = await fetch('data/_cache/project_health.json');
@@ -426,7 +426,7 @@
                 document.getElementById('dormant-git-header').textContent = `Git Commits (${win.recent_label})`;
 
                 document.getElementById('health-title').textContent =
-                    `Project Health — ${win.recent_label} vs ${win.prior_label}`;
+                    `Activity Trends — ${win.recent_label} vs ${win.prior_label}`;
                 document.getElementById('health-window').textContent = win.description;
                 document.getElementById('health-methodology').textContent =
                     'Mailing list counts include only human discussion lists (dev, user, general, discuss). ' +
@@ -443,7 +443,7 @@
                     `Current partial month excluded. Only projects with data files are assessed.`;
 
                 // In JSON: "declining" = both axes down (severe), "at_risk" = one axis down (moderate)
-                // On page: "At Risk" (red) = severe, "Declining" (orange) = moderate
+                // On page: "Sharp Decline" (red) = severe, "Declining" (orange) = moderate
                 document.getElementById('at-risk-count').textContent = `(${healthData.declining.length})`;
                 document.getElementById('declining-count').textContent = `(${healthData.at_risk.length})`;
                 document.getElementById('dormant-count').textContent = `(${healthData.dormant.length})`;

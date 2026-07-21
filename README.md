@@ -1,6 +1,6 @@
 # ASF Community Development Metrics
 
-Public dashboard showing community health metrics for Apache projects,
+Public dashboard showing community activity metrics for Apache projects,
 with 12-month trend lines for meaningful context.
 
 **Status**: Working dashboard deployed at https://boxofclue.com/comdev-metrics/ —
@@ -142,6 +142,11 @@ Options:
   --force-refresh       Clear all caches and re-fetch everything
   --refresh-repos       Re-fetch the GitHub repo inventory (project → repos map)
 ```
+
+## Deployment
+
+**Dev/staging**: https://boxofclue.com/comdev-metrics/ (matrim.rcbowen.com, Alma Linux)
+**Production**: ASF ComDev VM (Ubuntu) — eventually
 
 ```
 # Weekly cron

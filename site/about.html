@@ -91,14 +91,14 @@
             <li>A collector runs weekly, fetching data from the sources above.</li>
             <li>Data is cached aggressively — past months are immutable and never re-fetched.</li>
             <li>Only the current month's data is refreshed on each run.</li>
-            <li>After collection, a health classification pass computes project status
-            (At Risk / Declining / Dormant / Healthy) from the collected data using fixed thresholds.</li>
+            <li>After collection, an activity classification pass categorizes projects by trend
+            (Sharp Decline / Declining / Dormant) from the collected data using fixed thresholds.</li>
             <li>The output is static HTML + JSON — no live server or database.</li>
             <li>Trend lines use linear regression over a 12-month rolling window.</li>
             <li>The current (incomplete) month is extrapolated to a full-month estimate for trend accuracy.</li>
             <li>Each project has a dedicated page showing all its metrics in one place —
             mailing lists (linked to <a href="https://lists.apache.org/">lists.apache.org</a> archives),
-            git repos, releases, community growth, and health status.</li>
+            git repos, releases, community growth, and activity trends.</li>
         </ul>
     </div>
 
@@ -128,15 +128,14 @@
         <h3>Releases</h3>
         <p>Release publications in the past 12 months, as recorded by projects.apache.org.</p>
 
-        <h3>Project Health</h3>
-        <p>A deterministic classification computed from the collected data. Compares the two
+        <h3>Activity Trends</h3>
+        <p>A deterministic classification of quarter-over-quarter trends. Compares the two
         most recent full quarters (excluding the current partial month) for both mailing list
         discussion activity and git commit volume.</p>
         <ul>
-            <li><strong>🔴 At Risk</strong> — both mailing list and git activity declining ≥ 30% quarter-over-quarter. Immediate attention needed.</li>
-            <li><strong>🟡 Declining</strong> — one metric declining ≥ 30%, with meaningful prior activity (≥ 30 messages or commits in the prior quarter). If the other metric is growing ≥ 30%, the project is not flagged.</li>
+            <li><strong>🔴 Sharp Decline</strong> — both mailing list and git activity down ≥ 30% quarter-over-quarter.</li>
+            <li><strong>🟡 Declining</strong> — one metric down ≥ 30%, with meaningful prior activity (≥ 30 messages or commits in the prior quarter). If the other metric is growing ≥ 30%, the project is not flagged.</li>
             <li><strong>⚫ Dormant</strong> — fewer than 5 commits and 5 mailing list messages in the recent quarter.</li>
-            <li><strong>🟢 Healthy</strong> — no significant decline detected (shown on per-project pages only).</li>
         </ul>
         <p>Only human discussion lists (dev, user, general, discuss) are counted for mailing list
         trends — automated lists (notifications, commits, issues) are excluded. The thresholds are
